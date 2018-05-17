@@ -42,6 +42,20 @@
 (defun igo-parse-sgf-collection (sgf-str)
   )
 
+(defun igo-parse-sgf-list (sgf-str parsing-function)
+  (labels ((parse-list (acc str) (let ((element (funcall parsing-function str)))
+                                       (if element
+                                           (parse-list (cons (car element) acc) (cdr element))
+                                         (cons acc str)))))
+    (parse-list '() sgf-str)))
+
+(defun igo-parse-sgf-sequence-element (sgf-str)
+  ;todo
+  )
+
+(defun igo-parse-sgf-sequence (sgf-str)
+  (igo-parse-sgf-list sgf-str 'igo-parse-sgf-sequence-element))
+
 (defun igo-parse-sgf-gametree (str)
   (let ((seq-str (igo-parse-next-token str "(")))
     (if (not seq-str)
@@ -50,27 +64,16 @@
         (if (not sequence)
             nil
           (progn
-            (let ((subtrees (let ((subtree-str (cdr sequence)))
-                              (do* ((subtree (igo-parse-sgf-gametree subtree-str) (igo-parse-sgf-gametree subtree-str))
-                                    (subtree-list '() (cons (car subtree) subtree-list)))
-                                  ((not subtree) (cons subtree-list subtree-str))
-                                (setq subtree-str (cdr subtree))))))
-              (debug)
+            (let ((subtrees (igo-parse-sgf-list (cdr sequence) 'igo-parse-sgf-gametree)))
               (let ((rest (igo-parse-next-token (cdr subtrees) ")")))
                 (if rest
-                    (cons (list 'subtree (car sequence) (car subtrees))
+                    (cons (list 'gametree (car sequence) (car subtrees))
                           rest)
                   nil)))))))))
 
-(defun igo-parse-sgf-sequence (sgf-str)
-  (let ((rest (igo-parse-next-token sgf-str "aaa")))
-    (if rest
-        (cons (list 'sequence 'aaa) rest)
-      nil)))
-
-(igo-parse-sgf-gametree "   (aaa   (  aaa (aaa)  )\n)")
-(igo-parse-sgf-gametree "(aaa)")
-(igo-parse-sgf-gametree "(aaa(aaa))")
+(pp (igo-parse-sgf-gametree "   (aaa   (  aaa (aaa)  )\n)"))
+(pp (igo-parse-sgf-gametree "(aaa)"))
+(pp (igo-parse-sgf-gametree "(aaa(aaa))"))
 
 (defun igo-sgf-parsing (sgf-data)
   "Converts sgf game into internal igo-mode format."
