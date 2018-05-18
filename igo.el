@@ -56,7 +56,7 @@
 ;; (igo-parse-is-letter? (elt "aaa" 0))
 ;; (igo-parse-is-letter? ?a)
 
-(defun igo-parse-sgf-property (sgf-str)
+(defun igo-parse-sgf-property-id (sgf-str)
   (labels ((call-error () (signal 'igo-error-sgf-parsing (concat "invalid property for " sgf-str)))
            (parse-proptery (acc str)
                            (if (string= str "")
@@ -71,9 +71,25 @@
                                    (cons acc str)))))))
     (parse-proptery "" sgf-str)))
 
-(igo-parse-sgf-property "aaa")
-(igo-parse-sgf-property "   \raaa[")
-(igo-parse-sgf-property "   \raBaZ  [")
+(igo-parse-sgf-property-id "aaa")
+(igo-parse-sgf-property-id "   \raaa[")
+(igo-parse-sgf-property-id "   \raBaZ  [")
+
+;; None | Number | Real | Double | Color | SimpleText |
+;; Text | Point  | Move | Stone
+(defun igo-parse-sgf-value-type (sgf-str)
+  )
+
+(defun igo-parse-sgf-property-value (sgf-str)
+  (igo-parse-next-token sgf-str "[")
+  (let ((value-type (igo-parse-sgf-value-type sgf-str)))
+    (igo-parse-next-token sgf-str "]")
+    value-type))
+
+(defun igo-parse-sgf-property (sgf-str)
+  (let* ((property-id (igo-parse-sgf-property-id sgf-str))
+         (property-values (igo-parse-sgf-list (cdr property-id) igo-parse-sgf-property-value)))
+    (cons (list property-id (car property-values)) (cdr property-values))))
 
 (defun igo-parse-sgf-node (sgf-str)
   (let ((node-str-rest (igo-parse-next-token sgf-str ";")))
