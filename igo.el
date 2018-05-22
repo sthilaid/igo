@@ -77,8 +77,72 @@
 
 ;; None | Number | Real | Double | Color | SimpleText |
 ;; Text | Point  | Move | Stone
+;;      UcLetter   = "A".."Z"
+;;      Digit      = "0".."9"
+;;      None       = ""
+        
+;;      Number     = [("+"|"-")] Digit { Digit }
+;;      Real       = Number ["." Digit { Digit }]
+        
+;;      Double     = ("1" | "2")
+;;      Color      = ("B" | "W")
+        
+;;      SimpleText = { any character (handling see below) }
+;;      Text       = { any character (handling see below) }
+        
+;;      Point      = game-specific
+;;      Move       = game-specific
+;;      Stone      = game-specific
 (defun igo-parse-sgf-value-type (sgf-str)
-  )
+  (labels ((parse-double (str) (if (and (>= (length str) 2)
+                                        (let ((char (elt str 0))) (or (= char ?1) (= char ?2)))
+                                        (= (elt str 1) ?\]))
+                                   (cons (list 'double (elt str 0)) (substring str 1))
+                                 nil))
+           (parse-color (str) (if (and (>= (length str) 2)
+                                        (let ((char (elt str 0))) (or (= char ?B) (= char ?W)))
+                                        (= (elt str 1) ?\]))
+                                   (cons (list 'color (elt str 0)) (substring str 1))
+                                 nil))
+           (parse-point (str) nil) ; todo
+           (parse-move (str) nil) ; todo
+           (parse-stone (str) nil) ; todo
+           (parse-number (acc str has-decimal?)
+                         (let ((char (elt str 0)))
+                           (cond ((or (and (string= acc "")
+                                           (or (= char ?+)
+                                               (= char ?-)))
+                                      (and (>= char ?0)
+                                           (<= char ?9)))
+                                  (parse-number (concat acc (list char)) (substring str 1) nil))
+
+                                 ((and (not has-decimal?) (= char ?.))
+                                  (parse-number (concat acc (list char)) (substring str 1) t))
+
+                                 ((= char ?\])
+                                  (cons (list 'number acc) str))
+
+                                 (t nil))))
+           (parse-text (acc str)
+                       (let ((char (elt str 0)))
+                         (if (= char ?\])
+                             (cons (list 'text acc) str)
+                           (parse-text (concat acc (list char)) (substring str 1))))))
+    (or (parse-double sgf-str)
+               (parse-color sgf-str)
+               (parse-point sgf-str)
+               (parse-move sgf-str)
+               (parse-stone sgf-str)
+               (parse-number "" sgf-str nil)
+               (parse-text "" sgf-str))))
+
+(igo-parse-sgf-value-type "1]")
+(igo-parse-sgf-value-type "B]")
+(igo-parse-sgf-value-type "BB]")
+(igo-parse-sgf-value-type "+12.33322]")
+(igo-parse-sgf-value-type "+12.+33322]")
+(igo-parse-sgf-value-type "+12.33.322]") ;; need to fix this
+(igo-parse-sgf-value-type "bla blua\r]")
 
 (defun igo-parse-sgf-property-value (sgf-str)
   (igo-parse-next-token sgf-str "[")
