@@ -8,6 +8,38 @@
                                (buffer-string))
                            "")))
 
+  ;; -------------------------------------------------------------------
+  ;; SGF Syntax
+  ;; -------------------------------------------------------------------
+  ;; Collection = GameTree { GameTree }
+  ;; GameTree   = "(" Sequence { GameTree } ")"
+  ;; Sequence   = Node { Node }
+  ;; Node       = ";" { Property }
+  ;; Property   = PropIdent PropValue { PropValue }
+  ;; PropIdent  = UcLetter { UcLetter }
+  ;; PropValue  = "[" CValueType "]"
+  ;; CValueType = (ValueType | Compose)
+  ;; ValueType  = (None | Number | Real | Double | Color | SimpleText |
+  ;;               Text | Point  | Move | Stone)
+  ;; UcLetter   = "A".."Z"
+  ;; Digit      = "0".."9"
+  ;; None       = ""
+
+  ;; Number     = [("+"|"-")] Digit { Digit }
+  ;; Real       = Number ["." Digit { Digit }]
+
+  ;; Double     = ("1" | "2")
+  ;; Color      = ("B" | "W")
+
+  ;; SimpleText = { any character (handling see below) }
+  ;; Text       = { any character (handling see below) }
+
+  ;; Point      = game-specific
+  ;; Move       = game-specific
+  ;; Stone      = game-specific
+
+  ;; Compose    = ValueType ":" ValueType
+
 (defun igo-parse-ignore-char (c)
   (or (= c ?\n)
       (= c ?\v)
@@ -42,11 +74,15 @@
 ;; (igo-parse-next-token "aaa)" "aab")
 
 (defun igo-parse-sgf-list (sgf-str parsing-function)
-  (labels ((parse-list (acc str) (let ((element (funcall parsing-function str)))
-                                       (if element
-                                           (parse-list (cons (car element) acc) (cdr element))
-                                         (cons acc str)))))
-    (parse-list '() sgf-str)))
+  (labels ((parse-list (acc str)
+                       (condition-case err
+                           (let ((element (funcall parsing-function str)))
+                             (if element
+                                 (parse-list (cons (car element) acc) (cdr element))
+                               (cons acc str)))
+                         (igo-error-sgf-parsing (cons acc str)))))
+    (let ((result (parse-list '() sgf-str)))
+      (cons (reverse (car result)) (cdr result)))))
 
 (defun igo-parse-is-letter? (char)
   (let ((downcase-char (downcase char)))
@@ -75,24 +111,6 @@
 (igo-parse-sgf-property-id "   \raaa[")
 (igo-parse-sgf-property-id "   \raBaZ  [")
 
-;; None | Number | Real | Double | Color | SimpleText |
-;; Text | Point  | Move | Stone
-;;      UcLetter   = "A".."Z"
-;;      Digit      = "0".."9"
-;;      None       = ""
-        
-;;      Number     = [("+"|"-")] Digit { Digit }
-;;      Real       = Number ["." Digit { Digit }]
-        
-;;      Double     = ("1" | "2")
-;;      Color      = ("B" | "W")
-        
-;;      SimpleText = { any character (handling see below) }
-;;      Text       = { any character (handling see below) }
-        
-;;      Point      = game-specific
-;;      Move       = game-specific
-;;      Stone      = game-specific
 (defun igo-parse-sgf-value-type (sgf-str)
   (labels ((parse-double (str) (if (and (>= (length str) 2)
                                         (let ((char (elt str 0))) (or (= char ?1) (= char ?2)))
@@ -100,13 +118,13 @@
                                    (cons (list 'double (elt str 0)) (substring str 1))
                                  nil))
            (parse-color (str) (if (and (>= (length str) 2)
-                                        (let ((char (elt str 0))) (or (= char ?B) (= char ?W)))
-                                        (= (elt str 1) ?\]))
-                                   (cons (list 'color (elt str 0)) (substring str 1))
-                                 nil))
-           (parse-point (str) nil) ; todo
-           (parse-move (str) nil) ; todo
-           (parse-stone (str) nil) ; todo
+                                       (let ((char (elt str 0))) (or (= char ?B) (= char ?W)))
+                                       (= (elt str 1) ?\]))
+                                  (cons (list 'color (elt str 0)) (substring str 1))
+                                nil))
+           (parse-point (str) nil)      ; todo
+           (parse-move (str) nil)       ; todo
+           (parse-stone (str) nil)      ; todo
            (parse-number (acc str has-decimal?)
                          (let ((char (elt str 0)))
                            (cond ((or (and (string= acc "")
@@ -129,12 +147,12 @@
                              (cons (list 'text acc) str)
                            (parse-text (concat acc (list char)) (substring str 1))))))
     (or (parse-double sgf-str)
-               (parse-color sgf-str)
-               (parse-point sgf-str)
-               (parse-move sgf-str)
-               (parse-stone sgf-str)
-               (parse-number "" sgf-str nil)
-               (parse-text "" sgf-str))))
+        (parse-color sgf-str)
+        (parse-point sgf-str)
+        (parse-move sgf-str)
+        (parse-stone sgf-str)
+        (parse-number "" sgf-str nil)
+        (parse-text "" sgf-str))))
 
 (igo-parse-sgf-value-type "1]")
 (igo-parse-sgf-value-type "B]")
@@ -145,15 +163,25 @@
 (igo-parse-sgf-value-type "bla blua\r]")
 
 (defun igo-parse-sgf-property-value (sgf-str)
-  (igo-parse-next-token sgf-str "[")
-  (let ((value-type (igo-parse-sgf-value-type sgf-str)))
-    (igo-parse-next-token sgf-str "]")
-    value-type))
+  (if (or (not sgf-str) (string= sgf-str "")) (signal 'igo-error-sgf-parsing (concat "invalid value string: " sgf-str)))
+  (let* ((str (igo-parse-next-token sgf-str "["))
+               (value-type (igo-parse-sgf-value-type str))
+               (result (igo-parse-next-token (cdr value-type) "]")))
+          (cons (car value-type) result)))
+
+(igo-parse-sgf-property-value nil)
+(igo-parse-sgf-property-value "")
+(igo-parse-sgf-property-value "[text test]")
 
 (defun igo-parse-sgf-property (sgf-str)
+  (if (not sgf-str) (signal 'igo-error-sgf-parsing (concat "invalid property string: " sgf-str)))
   (let* ((property-id (igo-parse-sgf-property-id sgf-str))
-         (property-values (igo-parse-sgf-list (cdr property-id) igo-parse-sgf-property-value)))
-    (cons (list property-id (car property-values)) (cdr property-values))))
+         (property-values (igo-parse-sgf-list (cdr property-id) 'igo-parse-sgf-property-value))
+         ;(property-values (igo-parse-sgf-property-value(cdr property-id)))
+         )
+    (cons (list (car property-id) (car property-values)) (cdr property-values))))
+
+(igo-parse-sgf-property "C[text test][another comment]")
 
 (defun igo-parse-sgf-node (sgf-str)
   (let ((node-str-rest (igo-parse-next-token sgf-str ";")))
@@ -161,7 +189,8 @@
         (igo-parse-sgf-property node-str-rest)
       (signal 'igo-error-sgf-parsing (concat "while paring node: " sgf-str)))))
 
-(igo-parse-sgf-node "test")
+(igo-parse-sgf-node ";C[Comment]")
+(igo-parse-sgf-node ";AB[B]")
 
 ;; need have error/exception management!
 
