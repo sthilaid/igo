@@ -107,9 +107,9 @@
 									  (cons acc str)))))))
     (parse-proptery "" sgf-str)))
 
-(igo-parse-sgf-property-id "aaa")
-(igo-parse-sgf-property-id "   \raaa[")
-(igo-parse-sgf-property-id "   \raBaZ  [")
+;; (igo-parse-sgf-property-id "aaa")
+;; (igo-parse-sgf-property-id "   \raaa[")
+;; (igo-parse-sgf-property-id "   \raBaZ  [")
 
 (defun igo-parse-sgf-value-type (sgf-str)
   (cl-labels ((parse-double (str) (if (and (>= (length str) 2)
@@ -154,13 +154,13 @@
         (parse-number "" sgf-str nil)
         (parse-text "" sgf-str))))
 
-(igo-parse-sgf-value-type "1]")
-(igo-parse-sgf-value-type "B]")
-(igo-parse-sgf-value-type "BB]")
-(igo-parse-sgf-value-type "+12.33322]")
-(igo-parse-sgf-value-type "+12.+33322]")
-(igo-parse-sgf-value-type "+12.33.322]") ;; need to fix this
-(igo-parse-sgf-value-type "bla blua\r]")
+;; (igo-parse-sgf-value-type "1]")
+;; (igo-parse-sgf-value-type "B]")
+;; (igo-parse-sgf-value-type "BB]")
+;; (igo-parse-sgf-value-type "+12.33322]")
+;; (igo-parse-sgf-value-type "+12.+33322]")
+;; (igo-parse-sgf-value-type "+12.33.322]") ;; need to fix this
+;; (igo-parse-sgf-value-type "bla blua\r]")
 
 (defun igo-parse-sgf-property-value (sgf-str)
   (if (or (not sgf-str) (string= sgf-str "")) (signal 'igo-error-sgf-parsing (concat "invalid value string: " sgf-str)))
@@ -169,34 +169,56 @@
                (result (igo-parse-next-token (cdr value-type) "]")))
           (cons (car value-type) result)))
 
-(igo-parse-sgf-property-value nil)
-(igo-parse-sgf-property-value "")
-(igo-parse-sgf-property-value "[text test]")
+;; (igo-parse-sgf-property-value nil)
+;; (igo-parse-sgf-property-value "")
+;; (igo-parse-sgf-property-value "[text test]")
 
 (defun igo-parse-sgf-property (sgf-str)
-  (if (not sgf-str) (signal 'igo-error-sgf-parsing (concat "invalid property string: " sgf-str)))
+  (if (or (not sgf-str) (string= sgf-str "")) (signal 'igo-error-sgf-parsing (concat "invalid property string: " sgf-str)))
   (let* ((property-id (igo-parse-sgf-property-id sgf-str))
-         (property-values (igo-parse-sgf-list (cdr property-id) 'igo-parse-sgf-property-value))
-         ;(property-values (igo-parse-sgf-property-value(cdr property-id)))
-         )
+         (property-values (igo-parse-sgf-list (cdr property-id) 'igo-parse-sgf-property-value)))
     (cons (list (car property-id) (car property-values)) (cdr property-values))))
 
-(igo-parse-sgf-property "C[text test][another comment]")
+;(igo-parse-sgf-property "C[text test][another comment]")
 
 (defun igo-parse-sgf-node (sgf-str)
   (let ((node-str-rest (igo-parse-next-token sgf-str ";")))
     (if node-str-rest
-        (igo-parse-sgf-property node-str-rest)
+		;(igo-parse-sgf-property node-str-rest)
+		(igo-parse-sgf-list node-str-rest 'igo-parse-sgf-property)
       (signal 'igo-error-sgf-parsing (concat "while paring node: " sgf-str)))))
 
-(igo-parse-sgf-node ";C[Comment]")
-(igo-parse-sgf-node ";AB[B]")
-(igo-parse-sgf-node ";AB[dd][de][df][dg][dh][di][dj][nj][ni][nh][nf][ne][nd][ij][ii][ih][hq][gq][fq][eq][dr][ds][dq][dp][cp][bp][ap][iq][ir][is][bo][bn][an][ms][mr]")
+;; (igo-parse-sgf-node ";C[Comment]")
+;; (igo-parse-sgf-node ";AB[B]")
+;; (pp (igo-parse-sgf-node ";AB[dd][de][df][dg][dh][di][dj][nj][ni][nh][nf][ne][nd][ij][ii][ih][hq][gq][fq][eq][dr][ds][dq][dp][cp][bp][ap][iq][ir][is][bo][bn][an][ms][mr]"))
+;; (pp (igo-parse-sgf-node ";AB[dd][de][df][dg][dh][di][dj][nj][ni][nh][nf][ne][nd][ij][ii][ih][hq]
+;; [gq][fq][eq][dr][ds][dq][dp][cp][bp][ap][iq][ir][is][bo][bn][an][ms][mr]
+;; AW[pd][pe][pf][pg][ph][pi][pj][fd][fe][ff][fh][fi][fj][kh][ki][kj][os][or]
+;; [oq][op][pp][qp][rp][sp][ro][rn][sn][nq][mq][lq][kq][kr][ks][fs][gs][gr]
+;; [er]N[Markup]C[Position set up without compressed point lists.]"))
 
 ;; need have error/exception management!
 
 (defun igo-parse-sgf-sequence (sgf-str)
   (igo-parse-sgf-list sgf-str 'igo-parse-sgf-node))
+
+;; (pp (igo-parse-sgf-sequence ";B[qr]N[Time limits, captures & move numbers]
+;; BL[120.0]C[Black time left: 120 sec];W[rr]
+;; WL[300]C[White time left: 300 sec];B[rq]
+;; BL[105.6]OB[10]C[Black time left: 105.6 sec
+;; Black stones left (in this byo-yomi period): 10];W[qq]
+;; WL[200]OW[2]C[White time left: 200 sec
+;; White stones left: 2];B[sr]
+;; BL[87.00]OB[9]C[Black time left: 87 sec
+;; Black stones left: 9];W[qs]
+;; WL[13.20]OW[1]C[White time left: 13.2 sec
+;; White stones left: 1];B[rs]
+;; C[One white stone at s2 captured];W[ps];B[pr];W[or]
+;; MN[2]C[Set move number to 2];B[os]
+;; C[Two white stones captured
+;; (at q1 & r1)]
+;; ;MN[112]W[pq]C[Set move number to 112];B[sq];W[rp];B[ps]
+;; ;W[ns];B[ss];W[nr]"))
 
 (defun igo-parse-sgf-gametree (str)
   (let ((seq-str (igo-parse-next-token str "(")))
@@ -211,9 +233,7 @@
                 (cons (list 'gametree (car sequence) (car subtrees))
                       rest)))))))))
 
-(pp (igo-parse-sgf-gametree "   (aaa   (  aaa (aaa)  )\n)"))
-(pp (igo-parse-sgf-gametree "(;aaa)"))
-(pp (igo-parse-sgf-gametree "(aaa(aaa))"))
+;;(igo-parse-sgf-gametree igo-examble-game)
 
 (defun igo-parse-sgf-collection (sgf-str)
 
