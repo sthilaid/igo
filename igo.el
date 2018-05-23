@@ -73,7 +73,7 @@
 ;;(igo-parse-next-token "   \n\r(allo)" "(")
 ;; (igo-parse-next-token "aaa)" "aab")
 
-(defun igo-parse-sgf-list (sgf-str parsing-function)
+(defun igo-parse-sgf-list (sgf-str parsing-function list-type)
   (cl-labels ((parse-list (acc str)
 						  (condition-case err
 							  (let ((element (funcall parsing-function str)))
@@ -82,7 +82,7 @@
 								  (cons acc str)))
 							(igo-error-sgf-parsing (cons acc str)))))
     (let ((result (parse-list '() sgf-str)))
-      (cons (reverse (car result)) (cdr result)))))
+      (cons (cons (make-symbol (concat (symbol-name list-type) "-list")) (reverse (car result))) (cdr result)))))
 
 (defun igo-parse-is-letter? (char)
   (let ((downcase-char (downcase char)))
@@ -176,7 +176,7 @@
 (defun igo-parse-sgf-property (sgf-str)
   (if (or (not sgf-str) (string= sgf-str "")) (signal 'igo-error-sgf-parsing (concat "invalid property string: " sgf-str)))
   (let* ((property-id (igo-parse-sgf-property-id sgf-str))
-         (property-values (igo-parse-sgf-list (cdr property-id) 'igo-parse-sgf-property-value)))
+         (property-values (igo-parse-sgf-list (cdr property-id) 'igo-parse-sgf-property-value 'value)))
     (cons (list (car property-id) (car property-values)) (cdr property-values))))
 
 ;(igo-parse-sgf-property "C[text test][another comment]")
@@ -185,7 +185,7 @@
   (let ((node-str-rest (igo-parse-next-token sgf-str ";")))
     (if node-str-rest
 		;(igo-parse-sgf-property node-str-rest)
-		(igo-parse-sgf-list node-str-rest 'igo-parse-sgf-property)
+		(igo-parse-sgf-list node-str-rest 'igo-parse-sgf-property 'property)
       (signal 'igo-error-sgf-parsing (concat "while paring node: " sgf-str)))))
 
 ;; (igo-parse-sgf-node ";C[Comment]")
@@ -200,7 +200,7 @@
 ;; need have error/exception management!
 
 (defun igo-parse-sgf-sequence (sgf-str)
-  (igo-parse-sgf-list sgf-str 'igo-parse-sgf-node))
+  (igo-parse-sgf-list sgf-str 'igo-parse-sgf-node 'sequence))
 
 ;; (pp (igo-parse-sgf-sequence ";B[qr]N[Time limits, captures & move numbers]
 ;; BL[120.0]C[Black time left: 120 sec];W[rr]
@@ -226,7 +226,7 @@
         (signal 'igo-error-sgf-parsing (concat "invalid gametree token ( for: " str))
       (let ((sequence (igo-parse-sgf-sequence seq-str)))
         (progn
-          (let ((subtrees (igo-parse-sgf-list (cdr sequence) 'igo-parse-sgf-gametree)))
+          (let ((subtrees (igo-parse-sgf-list (cdr sequence) 'igo-parse-sgf-gametree 'gametree)))
             (let ((rest (igo-parse-next-token (cdr subtrees) ")")))
               (if (not rest)
                   (signal 'igo-error-sgf-parsing (concat "invalid gametree token ) for: " (cdr subtrees)))
@@ -234,6 +234,9 @@
                       rest)))))))))
 
 ;;(igo-parse-sgf-gametree igo-examble-game)
+;;(igo-parse-sgf-gametree "(;B[ab]C[comment];B[cd]C[comment](;Z[12]C[comment];Z[45]C[comment])(;X[12.0]C[comment];Y[12]))")
+;;(pp (igo-parse-sgf-gametree "(;B[ab]C[comment];B[cd]C[comment])"))
+;;(pp (igo-parse-sgf-gametree "(;B[ab]C[comment];B[cd]C[comment](;XY[12]C[comment];YZ[15])(;H[1]B[B];H[2]B[W]))"))
 
 (defun igo-parse-sgf-collection (sgf-str)
 
