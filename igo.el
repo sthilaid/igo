@@ -74,13 +74,13 @@
 ;; (igo-parse-next-token "aaa)" "aab")
 
 (defun igo-parse-sgf-list (sgf-str parsing-function)
-  (labels ((parse-list (acc str)
-                       (condition-case err
-                           (let ((element (funcall parsing-function str)))
-                             (if element
-                                 (parse-list (cons (car element) acc) (cdr element))
-                               (cons acc str)))
-                         (igo-error-sgf-parsing (cons acc str)))))
+  (cl-labels ((parse-list (acc str)
+						  (condition-case err
+							  (let ((element (funcall parsing-function str)))
+								(if element
+									(parse-list (cons (car element) acc) (cdr element))
+								  (cons acc str)))
+							(igo-error-sgf-parsing (cons acc str)))))
     (let ((result (parse-list '() sgf-str)))
       (cons (reverse (car result)) (cdr result)))))
 
@@ -93,18 +93,18 @@
 ;; (igo-parse-is-letter? ?a)
 
 (defun igo-parse-sgf-property-id (sgf-str)
-  (labels ((call-error () (signal 'igo-error-sgf-parsing (concat "invalid property for " sgf-str)))
-           (parse-proptery (acc str)
-                           (if (string= str "")
-                               (cons acc str)
-                             (let ((char (elt str 0)))
-                               (if (igo-parse-is-letter? char)
-                                   (parse-proptery (concat acc (list char)) (substring str 1))
-                                 (if (string= acc "")
-                                     (if (igo-parse-ignore-char char)
-                                         (parse-proptery acc (substring str 1))
-                                       (call-error))
-                                   (cons acc str)))))))
+  (cl-labels ((call-error () (signal 'igo-error-sgf-parsing (concat "invalid property for " sgf-str)))
+			  (parse-proptery (acc str)
+							  (if (string= str "")
+								  (cons acc str)
+								(let ((char (elt str 0)))
+								  (if (igo-parse-is-letter? char)
+									  (parse-proptery (concat acc (list char)) (substring str 1))
+									(if (string= acc "")
+										(if (igo-parse-ignore-char char)
+											(parse-proptery acc (substring str 1))
+										  (call-error))
+									  (cons acc str)))))))
     (parse-proptery "" sgf-str)))
 
 (igo-parse-sgf-property-id "aaa")
@@ -112,40 +112,40 @@
 (igo-parse-sgf-property-id "   \raBaZ  [")
 
 (defun igo-parse-sgf-value-type (sgf-str)
-  (labels ((parse-double (str) (if (and (>= (length str) 2)
-                                        (let ((char (elt str 0))) (or (= char ?1) (= char ?2)))
-                                        (= (elt str 1) ?\]))
-                                   (cons (list 'double (elt str 0)) (substring str 1))
-                                 nil))
-           (parse-color (str) (if (and (>= (length str) 2)
-                                       (let ((char (elt str 0))) (or (= char ?B) (= char ?W)))
-                                       (= (elt str 1) ?\]))
-                                  (cons (list 'color (elt str 0)) (substring str 1))
-                                nil))
-           (parse-point (str) nil)      ; todo
-           (parse-move (str) nil)       ; todo
-           (parse-stone (str) nil)      ; todo
-           (parse-number (acc str has-decimal?)
-                         (let ((char (elt str 0)))
-                           (cond ((or (and (string= acc "")
-                                           (or (= char ?+)
-                                               (= char ?-)))
-                                      (and (>= char ?0)
-                                           (<= char ?9)))
-                                  (parse-number (concat acc (list char)) (substring str 1) nil))
+  (cl-labels ((parse-double (str) (if (and (>= (length str) 2)
+										   (let ((char (elt str 0))) (or (= char ?1) (= char ?2)))
+										   (= (elt str 1) ?\]))
+									  (cons (list 'double (elt str 0)) (substring str 1))
+									nil))
+			  (parse-color (str) (if (and (>= (length str) 2)
+										  (let ((char (elt str 0))) (or (= char ?B) (= char ?W)))
+										  (= (elt str 1) ?\]))
+									 (cons (list 'color (elt str 0)) (substring str 1))
+								   nil))
+			  (parse-point (str) nil)      ; todo
+			  (parse-move (str) nil)       ; todo
+			  (parse-stone (str) nil)      ; todo
+			  (parse-number (acc str has-decimal?)
+							(let ((char (elt str 0)))
+							  (cond ((or (and (string= acc "")
+											  (or (= char ?+)
+												  (= char ?-)))
+										 (and (>= char ?0)
+											  (<= char ?9)))
+									 (parse-number (concat acc (list char)) (substring str 1) nil))
 
-                                 ((and (not has-decimal?) (= char ?.))
-                                  (parse-number (concat acc (list char)) (substring str 1) t))
+									((and (not has-decimal?) (= char ?.))
+									 (parse-number (concat acc (list char)) (substring str 1) t))
 
-                                 ((= char ?\])
-                                  (cons (list 'number acc) str))
+									((= char ?\])
+									 (cons (list 'number acc) str))
 
-                                 (t nil))))
-           (parse-text (acc str)
-                       (let ((char (elt str 0)))
-                         (if (= char ?\])
-                             (cons (list 'text acc) str)
-                           (parse-text (concat acc (list char)) (substring str 1))))))
+									(t nil))))
+			  (parse-text (acc str)
+						  (let ((char (elt str 0)))
+							(if (= char ?\])
+								(cons (list 'text acc) str)
+							  (parse-text (concat acc (list char)) (substring str 1))))))
     (or (parse-double sgf-str)
         (parse-color sgf-str)
         (parse-point sgf-str)
@@ -191,6 +191,7 @@
 
 (igo-parse-sgf-node ";C[Comment]")
 (igo-parse-sgf-node ";AB[B]")
+(igo-parse-sgf-node ";AB[dd][de][df][dg][dh][di][dj][nj][ni][nh][nf][ne][nd][ij][ii][ih][hq][gq][fq][eq][dr][ds][dq][dp][cp][bp][ap][iq][ir][is][bo][bn][an][ms][mr]")
 
 ;; need have error/exception management!
 
