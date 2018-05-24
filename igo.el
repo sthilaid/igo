@@ -1,6 +1,8 @@
 
 (define-error 'igo-error-sgf-parsing "sgf parsing error occured...")
 
+(setq igo-buffer-name "*igo*")
+
 (setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
                          (if (file-exists-p ex-game-file)
                              (with-temp-buffer
@@ -238,13 +240,23 @@
 ;;(pp (igo-parse-sgf-gametree "(;B[ab]C[comment];B[cd]C[comment])"))
 ;;(pp (igo-parse-sgf-gametree "(;B[ab]C[comment];B[cd]C[comment](;XY[12]C[comment];YZ[15])(;H[1]B[B];H[2]B[W]))"))
 
-(defun igo-parse-sgf-collection (sgf-str)
+;;(pp (igo-parse-sgf-gametree "(;FF[4]GM[1]SZ[19]CA[UTF-8]SO[gokifu.com]BC[cn]WC[kr]EV[]PB[Ke Jie]BR[9p]PW[Lee Sedol]WR[9p]KM[7.5]DT[2018-05-21]RE[W+R]TM[150]LT[]LC[5]GK[1];B[pd];W[dp];B[qp];W[cc];B[np];W[fq];B[qf];W[fd];B[bo];W[cp];B[ck];W[ci];B[cn];W[ob];B[pb];W[ej];B[oc];W[jd];B[he];W[hd];B[cd];W[dc];B[fe];W[ge];B[gf];W[gd];B[di];W[dj];B[cj];W[ch];B[ei];W[dl];B[cl];W[dg];B[fi];W[fg];B[ff];W[gg];B[hg];W[hh];B[ed];W[de];B[ee];W[dd];B[ec];W[ih];B[ie];W[id];B[ig];W[ef];B[fb];W[nc];B[kg];W[nb];B[le];W[lc];B[hb];W[ib];B[nd];W[qk];B[qm];W[qh];B[gp];W[hr];B[iq];W[hq];B[hp];W[ip];B[fp];W[ep];B[gq];W[gr];B[fr];W[eq];B[ir];W[er];B[kq];W[io];B[ko];W[ok];B[pj];W[pk];B[ri];W[ki];B[qi];W[ni];B[mk];W[nm];B[mi];W[mh];B[ld];W[mc];B[li];W[lh];B[kh];W[oh];B[ng];W[nh];B[rh];W[lk];B[jb];W[ia];B[kc];W[kb];B[kj];W[ji];B[ml];W[md];B[ne];W[pm];B[jj];W[ij];B[oj];W[nj];B[kl];W[ik];B[ll];W[me];B[mf];W[lg];B[lf];W[kf];B[je];W[jg];B[jf];W[jh];B[kd];W[jc];B[qn];W[nk];B[gn];W[em];B[dk];W[ek];B[dm];W[en];B[el];W[fl];B[hm];W[hn];B[fk];W[dl];B[lb];W[ja];B[el];W[qc];B[pc];W[dl];B[oa];W[la];B[el];W[hf];B[if];W[dl];B[na];W[mb];B[el];W[kg];B[ke];W[dl];B[hs];W[el];B[bi];W[fs];B[bh];W[bg];B[im];W[go];B[on];W[qg];B[rg];W[pf];B[qe];W[bp];B[ap];W[gm];B[om];W[nl];B[db];W[cb];B[ca];W[ba];B[da];W[ah];B[bj];W[jn];B[jm];W[kn];B[in];W[lo];B[ho];W[kp];B[lq];W[mn];B[fo];W[mp];B[mq];W[co];B[bn];W[jl];B[gl];W[fm];B[hk];W[fj];B[il];W[jk];B[hj];W[km];B[eo];W[dn];B[do];W[gk];B[gi];W[hl];B[cf];W[df];B[gl];W[cm];B[cg];W[dh];B[bm];W[hi];B[kk];W[ii])"))q
 
-  )
+(defun igo-parse-sgf-collection (sgf-str)
+  (igo-parse-sgf-list sgf-str 'igo-parse-sgf-gametree 'collection))
+
+;;(pp (igo-parse-sgf-collection "(;A[1])(B[2])"))
 
 (defun igo-sgf-parsing (sgf-data)
   "Converts sgf game into internal igo-mode format."
   'todo)
+
+(defun igo ()
+  "Play go"
+  (interactive)
+  (let ((igo-buffer (get-buffer-create igo-buffer-name)))
+    (switch-to-buffer igo-buffer)
+    ))
 
 (defvar igo-mode-map
   (let ((map (make-sparse-keymap)))
@@ -262,14 +274,10 @@
 	map)
   "igo-mode keymap.")
 
-(define-minor-mode igo-mode
-  "ide mode. Provides a convenient way to search for files in large projects defined in different format (.ide or text). Also support compiling projects, to a certain extent."
-  :init-value nil
-  :global f
-  :lighter " igo"
-  :keymap 'igo-mode-map
-  (let ((igo-buffer (get-buffer-create "*igo*")))
-    (switch-to-buffer igo-buffer)
-    (setq buffer-read-only 't)))
+(define-derived-mode igo-mode special-mode "Igo" "Major Mode for playing Go"
+  ;; :syntax-table
+  ;; :abbrev-table
+  ;; :group
+  )
 
 (provide 'igo)
