@@ -3,6 +3,10 @@
 
 (setq igo-buffer-name "*igo*")
 
+(if (not (assoc igo-buffer-name auto-mode-alist))
+    (setq auto-mode-alist
+          (append `((,igo-buffer-name . igo-mode)) auto-mode-alist)))
+
 (setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
                          (if (file-exists-p ex-game-file)
                              (with-temp-buffer
@@ -256,7 +260,7 @@
   (interactive)
   (let ((igo-buffer (get-buffer-create igo-buffer-name)))
     (switch-to-buffer igo-buffer)
-    ))
+    (igo-mode)))
 
 (defvar igo-mode-map
   (let ((map (make-sparse-keymap)))
