@@ -2,11 +2,6 @@
 (define-error 'igo-error-sgf-parsing "sgf parsing error occured...")
 
 (setq igo-buffer-name "*igo*")
-
-(if (not (assoc igo-buffer-name auto-mode-alist))
-    (setq auto-mode-alist
-          (append `((,igo-buffer-name . igo-mode)) auto-mode-alist)))
-
 (setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
                          (if (file-exists-p ex-game-file)
                              (with-temp-buffer
