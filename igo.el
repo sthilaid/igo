@@ -1,4 +1,3 @@
-
 (define-error 'igo-error-sgf-parsing "sgf parsing error occured...")
 
 (setq igo-buffer-name "*igo*")
@@ -8,6 +7,13 @@
                                (insert-file-contents ex-game-file)
                                (buffer-string))
                            "")))
+
+;; TEMPORARY
+(setq max-specpdl-size 50000)
+(setq max-lisp-eval-depth 50000)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; SGF Parsing
 
   ;; -------------------------------------------------------------------
   ;; SGF Syntax
@@ -250,15 +256,118 @@
   "Converts sgf game into internal igo-mode format."
   'todo)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Go Game
+
+(defun igo-new-gamestate (size)
+  (let* ((w (car size))
+		 (h (cdr size))
+		 (state (make-vector h nil)))
+	(cl-loop for j from 0 to (- h 1)
+			 do (aset state j (make-vector w nil)))
+	state))
+
+(defun igo-state-size (gamestate)
+  (let ((w (length (elt gamestate 0)))
+		(h (length gamestate)))
+	(cons w h)))
+
+(defun igo-state-get (coord gamestate)
+  (let* ((i-index (- (car coord) 1))
+		 (j-index (- (cdr coord) 1))
+		 (size (igo-state-size gamestate)))
+	(if (or (< i-index 0)
+			(< j-index 0)
+			(>= i-index (car size))
+			(>= j-index (cdr size)))
+		'oob
+	  (elt (elt gamestate j-index) i-index))))
+
+(defun igo-get-group (coord gamestate)
+  (let ((current (igo-state-get coord gamestate)))
+	(if (or (not current)
+			(eq current 'oob))
+		nil
+	  (let* ((i (car coord))
+			 (j (cdr coord))
+			 (neighbours (list (cons (- i 1) j)
+							   (cons (+ i 1) j)
+							   (cons i (- j 1))
+							   (cons i (+ j 1)))))
+		(let ((accumulate-neighbours (lambda (acc neighbour-coord)
+									   (let ((neighbour-position (igo-state-get neighbour-coord gamestate)))
+										 (if (eq neighbour-position current)
+											 (append (cons neighbour-coord acc) (igo-get-group neighbour-coord gamestate))
+										   acc)))))
+		  (seq-reduce accumulate-neighbours neighbours (list coord)))))))
+
+(let ((state (igo-new-gamestate (cons 9 9))))
+  (igo-play-move 'w '(1 . 1) state)
+  (igo-play-move 'w '(1 . 2) state)
+  (igo-play-move 'w '(1 . 3) state)
+  (igo-play-move 'w '(2 . 3) state)
+  (igo-play-move 'w '(3 . 3) state)
+  (igo-get-group '(2 . 3) state))
+
+(define-error 'igo-error-invalid-player "Invalid player used in game of go, should be 'b or 'w")
+
+(defun igo-play-move (player coord gamestate)
+  (if (and (not (eq player 'b))
+		   (not (eq player 'w)))
+	  (signal 'igo-error-invalid-player player))
+  (let* ((i-index (- (car coord) 1))
+		 (j-index (- (cdr coord) 1))
+		 (current (elt (elt gamestate j-index) i-index)))
+	(if current (signal 'igo-error-invalid-move (concat "already " (symbol-name current) " stone at (" (number-to-string (car coord)) " . " (number-to-string (cdr coord)) ")")))
+
+	;; todo: check for conneciton and liberties...
+	(aset (elt gamestate j-index) i-index player)))
+
+(defun igo-is-star-coord? (i j w h)
+  (let* ((w-star-dist (if (< w 13) 3 4))
+		 (h-star-dist (if (< h 13) 3 4))
+		 (w-center (+ (/ w 2) 1))
+		 (h-center (+ (/ h 2) 1)))
+	(and (or (= i w-star-dist)
+			 (= i w-center)
+			 (= i (- (+ w 1) w-star-dist)))
+		 (or (= j h-star-dist)
+			 (= j h-center)
+			 (= j (- (+ h 1) h-star-dist))))))
+
+(defun igo-draw-position (i j w h gamestate)
+  (let ((position-value (elt (elt gamestate (- j 1)) (- i 1))))
+	(cond ((eq position-value 'b)		(insert "# "))
+		  ((eq position-value 'w)		(insert "O "))
+		  ((igo-is-star-coord? i j w h)	(insert "+ "))
+		  (t							(insert ". ")))))
+
+(defun igo-draw-goban (gamestate)
+  (let* ((inhibit-read-only t)
+		 (size (igo-state-size gamestate))
+		 (w (car size))
+		 (h (cdr size)))
+	(cl-loop for i from 1 to w
+			 do (progn (cl-loop for j from 1 to h
+								do (igo-draw-position i j w h gamestate))
+					   (newline)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; igo-mode definition
+
 (defun igo ()
   "Play go"
   (interactive)
   (let ((igo-buffer (get-buffer-create igo-buffer-name)))
     (switch-to-buffer igo-buffer)
-    (igo-mode)))
+    (igo-mode)
+	(igo-draw-goban (igo-new-gamestate (cons 19 19)))))
 
-(defvar igo-mode-map
+(defun igo-test () (interactive) (message "test"))
+
+(setq igo-mode-map
   (let ((map (make-sparse-keymap)))
+	(define-key map "t" 'igo-test)
 	;; (define-key map (kbd "<C-M-backspace>") 'ide-grep-solution)
 	;; (define-key map (kbd "<C-M-return>") 'ide-grep-project)
 
@@ -270,8 +379,7 @@
 	;; (define-key map (kbd "M-<f7>")	'ide-compile-solution)
 	;; (define-key map (kbd "C-<f7>")	'ide-compile-project)
 
-	map)
-  "igo-mode keymap.")
+	map))
 
 (define-derived-mode igo-mode special-mode "Igo" "Major Mode for playing Go"
   ;; :syntax-table
