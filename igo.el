@@ -1,9 +1,12 @@
-(define-error 'igo-error-sgf-parsing "sgf parsing error occured...")
+(define-error 'igo-error-sgf-parsing "sgf parsing error occured: ")
 (define-error 'igo-error-invalid-player "Invalid player used in game of go, should be 'b or 'w")
-(define-error 'igo-error-invalid-move "Played move is not valid...")
+(define-error 'igo-error-invalid-move "Played move is not valid: ")
+(define-error 'igo-error-invalid-coord "Invalid coordinate: ")
 
 (setq igo-buffer-name "*igo*")
 (setq igo-show-labels 't)
+(setq igo-current-mode nil) ;; play | 
+(setq igo-current-gamestate (igo-new-gamestate (cons 19 19)))
 (setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
                          (if (file-exists-p ex-game-file)
                              (with-temp-buffer
@@ -433,6 +436,36 @@
 ;;   (newline)
 ;;   (igo-draw-goban state))
 
+(defun igo-read-coord (gamestate)
+  (let* ((play-str (read-string "coord: " nil nil))
+		 (col (+ (- (elt play-str 0) ?a) 1))
+		 (row (+ (- (elt play-str 1) ?A) 1))
+		 (size (igo-state-size gamestate)))
+	(if (or (< col 0)
+			(>= row (car size))
+			(< row 0)
+			(>= row (cdr size)))
+		(signal 'igo-error-invalid-coord (list (cons col row))))
+	(cons col row)))
+
+(defun igo-play-mode-map ()
+  (let ((size (igo-state-size igo-current-gamestate))
+		(map (make-sparse-keymap)))
+	(cl-loop for i from ?a to (+ ?a (cdr size))
+			 do (define-key map (string i) (lambda () (igo-play-set-col i))))
+	(cl-loop for i from ?A to (+ ?A (car size))
+			 do (define-key map (string i) (lambda () (igo-play-set-row i))))
+	map))
+
+(defun igo-play-mode ()
+  (interactive)
+  (setq igo-current-mode (if (eq igo-current-mode 'play) nil 'play))
+
+  (if (eq igo-current-mode 'play)
+	  (setq igo-mode-map (igo-play-mode-map))
+	(setq igo-mode-map (igo-default-map)))
+  (message igo-current-mode))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; igo-mode definition
 
@@ -442,13 +475,14 @@
   (let ((igo-buffer (get-buffer-create igo-buffer-name)))
     (switch-to-buffer igo-buffer)
     (igo-mode)
-	(igo-draw-goban (igo-new-gamestate (cons 19 19)))))
+	(setq igo-current-gamestate (igo-new-gamestate (cons 19 19)))
+	(igo-draw-goban igo-current-gamestate)))
 
 (defun igo-test () (interactive) (message "test"))
 
-(setq igo-mode-map
+(defun igo-default-map ()
   (let ((map (make-sparse-keymap)))
-	(define-key map "t" 'igo-test)
+	(define-key map "p" 'igo-play-next-move)
 	;; (define-key map (kbd "<C-M-backspace>") 'ide-grep-solution)
 	;; (define-key map (kbd "<C-M-return>") 'ide-grep-project)
 
@@ -461,6 +495,8 @@
 	;; (define-key map (kbd "C-<f7>")	'ide-compile-project)
 
 	map))
+
+(setq igo-mode-map (igo-default-map))
 
 (define-derived-mode igo-mode special-mode "Igo" "Major Mode for playing Go"
   ;; :syntax-table
