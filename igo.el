@@ -1,4 +1,6 @@
 (define-error 'igo-error-sgf-parsing "sgf parsing error occured...")
+(define-error 'igo-error-invalid-player "Invalid player used in game of go, should be 'b or 'w")
+(define-error 'igo-error-invalid-move "Played move is not valid...")
 
 (setq igo-buffer-name "*igo*")
 (setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
@@ -67,7 +69,7 @@
 
                  if (and (not (igo-parse-ignore-char c))
                          (not (= c (elt token token-idx))))
-                 do (signal 'igo-error-sgf-parsing (concat "wrong token, expecting: " token " got: " str))
+                 do (signal 'igo-error-sgf-parsing (list (concat "wrong token, expecting: " token " got: " str)))
 
                  if (and (not (igo-parse-ignore-char c))
                          (= c (elt token token-idx)))
@@ -75,7 +77,7 @@
 
                  if (>= token-idx (length token))
                  return (substring str (+ i 1))))
-    (signal 'igo-error-sgf-parsing (concat "wrong token, expecting: " token " got: " str))))
+    (signal 'igo-error-sgf-parsing (list (concat "wrong token, expecting: " token " got: " str)))))
 
 ;;(igo-parse-next-token "   \n\r(allo)" "(")
 ;; (igo-parse-next-token "aaa)" "aab")
@@ -100,7 +102,7 @@
 ;; (igo-parse-is-letter? ?a)
 
 (defun igo-parse-sgf-property-id (sgf-str)
-  (cl-labels ((call-error () (signal 'igo-error-sgf-parsing (concat "invalid property for " sgf-str)))
+  (cl-labels ((call-error () (signal 'igo-error-sgf-parsing (list (concat "invalid property for " sgf-str))))
 			  (parse-proptery (acc str)
 							  (if (string= str "")
 								  (cons acc str)
@@ -170,7 +172,7 @@
 ;; (igo-parse-sgf-value-type "bla blua\r]")
 
 (defun igo-parse-sgf-property-value (sgf-str)
-  (if (or (not sgf-str) (string= sgf-str "")) (signal 'igo-error-sgf-parsing (concat "invalid value string: " sgf-str)))
+  (if (or (not sgf-str) (string= sgf-str "")) (signal 'igo-error-sgf-parsing (list (concat "invalid value string: " sgf-str))))
   (let* ((str (igo-parse-next-token sgf-str "["))
                (value-type (igo-parse-sgf-value-type str))
                (result (igo-parse-next-token (cdr value-type) "]")))
@@ -181,7 +183,7 @@
 ;; (igo-parse-sgf-property-value "[text test]")
 
 (defun igo-parse-sgf-property (sgf-str)
-  (if (or (not sgf-str) (string= sgf-str "")) (signal 'igo-error-sgf-parsing (concat "invalid property string: " sgf-str)))
+  (if (or (not sgf-str) (string= sgf-str "")) (signal 'igo-error-sgf-parsing (list (concat "invalid property string: " sgf-str))))
   (let* ((property-id (igo-parse-sgf-property-id sgf-str))
          (property-values (igo-parse-sgf-list (cdr property-id) 'igo-parse-sgf-property-value 'value)))
     (cons (list (car property-id) (car property-values)) (cdr property-values))))
@@ -193,7 +195,7 @@
     (if node-str-rest
 		;(igo-parse-sgf-property node-str-rest)
 		(igo-parse-sgf-list node-str-rest 'igo-parse-sgf-property 'property)
-      (signal 'igo-error-sgf-parsing (concat "while paring node: " sgf-str)))))
+      (signal 'igo-error-sgf-parsing (list (concat "while paring node: " sgf-str))))))
 
 ;; (igo-parse-sgf-node ";C[Comment]")
 ;; (igo-parse-sgf-node ";AB[B]")
@@ -230,13 +232,13 @@
 (defun igo-parse-sgf-gametree (str)
   (let ((seq-str (igo-parse-next-token str "(")))
     (if (not seq-str)
-        (signal 'igo-error-sgf-parsing (concat "invalid gametree token ( for: " str))
+        (signal 'igo-error-sgf-parsing (list (concat "invalid gametree token ( for: " str)))
       (let ((sequence (igo-parse-sgf-sequence seq-str)))
         (progn
           (let ((subtrees (igo-parse-sgf-list (cdr sequence) 'igo-parse-sgf-gametree 'gametree)))
             (let ((rest (igo-parse-next-token (cdr subtrees) ")")))
               (if (not rest)
-                  (signal 'igo-error-sgf-parsing (concat "invalid gametree token ) for: " (cdr subtrees)))
+                  (signal 'igo-error-sgf-parsing (list (concat "invalid gametree token ) for: " (cdr subtrees))))
                 (cons (list 'gametree (car sequence) (car subtrees))
                       rest)))))))))
 
@@ -265,11 +267,11 @@
 		 (state (make-vector h nil)))
 	(cl-loop for j from 0 to (- h 1)
 			 do (aset state j (make-vector w nil)))
-	state))
+	(vector state (vector 'black-capture: 0) (vector 'white-capture: 0) (vector 'ko: nil))))
 
 (defun igo-state-size (gamestate)
-  (let ((w (length (elt gamestate 0)))
-		(h (length gamestate)))
+  (let ((w (length (elt (elt gamestate 0) 0)))
+		(h (length (elt gamestate 0))))
 	(cons w h)))
 
 (defun igo-state-get (coord gamestate)
@@ -281,7 +283,24 @@
 			(>= i-index (car size))
 			(>= j-index (cdr size)))
 		'oob
-	  (elt (elt gamestate j-index) i-index))))
+	  (elt (elt (elt gamestate 0) j-index) i-index))))
+
+(defun igo-state-set (coord gamestate new-value)
+  (let* ((i-index (- (car coord) 1))
+		 (j-index (- (cdr coord) 1)))
+	(aset (elt (elt  gamestate 0) j-index) i-index new-value)))
+
+(defun igo-state-get-capture (player gamestate)
+  (elt (elt gamestate (if (eq player 'b) 1 2)) 1))
+
+(defun igo-state-change-capture (player capture-count gamestate)
+  (aset (elt gamestate (if (eq player 'b) 1 2)) 1 capture-count))
+
+(defun igo-state-get-ko (gamestate)
+  (elt (elt gamestate 3) 1))
+
+(defun igo-state-set-ko (ko-coord gamestate)
+  (aset (elt gamestate 3) 1 ko-coord))
 
 (defun igo-get-neighbours (coord)
   (let* ((i (car coord))
@@ -302,26 +321,49 @@
 											(seq-reduce (lambda (a c) (get-group-rec a c)) neighbours (cons coord acc))))))))
 	  (get-group-rec '() start-coord))))
 
-(defun igo-get-liberties (coord gamestate)
-  (let ((group (igo-get-group coord gamestate)))
-	(cl-loop for group-coord in group
-			 sum (cl-loop for neighbour-coord in (igo-get-neighbours group-coord)
-						  sum (let ((neighbour-value (igo-state-get neighbour-coord gamestate)))
-								(if (not neighbour-value) 1 0))))))
+(defun igo-get-liberties (group gamestate)
+  (cl-loop for group-coord in group
+		   sum (cl-loop for neighbour-coord in (igo-get-neighbours group-coord)
+						sum (let ((neighbour-value (igo-state-get neighbour-coord gamestate)))
+							  (if (not neighbour-value) 1 0)))))
 
-(define-error 'igo-error-invalid-player "Invalid player used in game of go, should be 'b or 'w")
+(defun igo-capture-group (group gamestate)
+  (let ((capturing-player (igo-other-player (igo-state-get (car group) gamestate))))
+   (dolist (group-coord group)
+	 (igo-state-set group-coord gamestate nil))
+   (igo-state-change-capture capturing-player (+ (igo-state-get-capture capturing-player gamestate) (length group)) gamestate)))
+
+(defun igo-other-player (player)
+  (if (eq player 'b) 'w 'b))
 
 (defun igo-play-move (player coord gamestate)
   (if (and (not (eq player 'b))
 		   (not (eq player 'w)))
-	  (signal 'igo-error-invalid-player player))
-  (let* ((i-index (- (car coord) 1))
-		 (j-index (- (cdr coord) 1))
-		 (current (elt (elt gamestate j-index) i-index)))
-	(if current (signal 'igo-error-invalid-move (concat "already " (symbol-name current) " stone at (" (number-to-string (car coord)) " . " (number-to-string (cdr coord)) ")")))
+	  (signal 'igo-error-invalid-player (list player)))
+  (let* ((current-value (igo-state-get coord gamestate)))
+	(if current-value (signal 'igo-error-invalid-move (list (concat "already " (symbol-name current-value)
+																	" stone at (" (number-to-string (car coord)) " . " (number-to-string (cdr coord)) ")"))))
+	(if (equal coord (igo-state-get-ko gamestate))
+		(signal 'igo-error-invalid-move (list (concat "Ko rule: cannot play where a single stone was just capture..."))))
 
-	;; todo: check for conneciton and liberties...
-	(aset (elt gamestate j-index) i-index player)))
+	(igo-state-set-ko nil gamestate) ; reset ko
+	(igo-state-set coord state player)
+
+	(let ((group-liberties (igo-get-liberties (igo-get-group coord gamestate) gamestate)))
+	  (if (= group-liberties 0)
+		  (progn (igo-state-set coord state nil)
+				 (signal 'igo-error-invalid-move (list (concat "Suicide move are not allowed..."))))))
+
+	(let ((other-player (igo-other-player player))
+		  (neighbours (igo-get-neighbours coord)))
+	  (dolist (neighbour-coord neighbours)
+		(let ((neighbour-value (igo-state-get neighbour-coord gamestate)))
+		  (if (eq neighbour-value other-player)
+			  (let ((neighbour-group (igo-get-group neighbour-coord gamestate)))
+				(if (= (igo-get-liberties neighbour-group gamestate) 0)
+					(progn (igo-capture-group neighbour-group gamestate)
+						   (if (= (length neighbour-group) 1)
+							   (igo-state-set-ko neighbour-coord gamestate)))))))))))
 
 ;; (let ((state (igo-new-gamestate (cons 9 9))))
 ;;   (igo-play-move 'w '(1 . 1) state)
@@ -331,7 +373,23 @@
 ;;   (igo-play-move 'b '(2 . 2) state)
 ;;   (igo-play-move 'b '(2 . 3) state)
 ;;   (igo-play-move 'b '(1 . 4) state)
-;;   (igo-get-liberties '(1 . 1) state))
+;;   ;;(igo-get-liberties (igo-get-group '(1 . 1) state) state)
+;;   (newline)
+;;   (igo-draw-goban state)
+;;   (insert (with-output-to-string (pp `(black: ,(igo-state-get-capture 'b state) white: ,(igo-state-get-capture 'w state)))))
+;;   )
+
+;; (let ((state (igo-new-gamestate (cons 9 9))))
+;;   (igo-play-move 'b '(2 . 2) state)
+;;   (igo-play-move 'w '(1 . 2) state)
+;;   (igo-play-move 'w '(3 . 2) state)
+;;   (igo-play-move 'w '(2 . 1) state)
+;;   ;;(igo-play-move 'w '(2 . 3) state)
+;;   (newline)
+;;   (igo-draw-goban state)
+;;   (insert (with-output-to-string (pp `(black: ,(igo-state-get-capture 'b state) white: ,(igo-state-get-capture 'w state) ko: ,(igo-state-get-ko state)))))
+;;   )
+
 
 (defun igo-is-star-coord? (i j w h)
   (let* ((w-star-dist (if (< w 13) 3 4))
@@ -346,7 +404,7 @@
 			 (= j (- (+ h 1) h-star-dist))))))
 
 (defun igo-draw-position (i j w h gamestate)
-  (let ((position-value (elt (elt gamestate (- j 1)) (- i 1))))
+  (let ((position-value (igo-state-get (cons i j) gamestate)))
 	(cond ((eq position-value 'b)		(insert "# "))
 		  ((eq position-value 'w)		(insert "O "))
 		  ((igo-is-star-coord? i j w h)	(insert "+ "))
