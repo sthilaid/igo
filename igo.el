@@ -3,6 +3,7 @@
 (define-error 'igo-error-invalid-move "Played move is not valid...")
 
 (setq igo-buffer-name "*igo*")
+(setq igo-show-labels 't)
 (setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
                          (if (file-exists-p ex-game-file)
                              (with-temp-buffer
@@ -415,10 +416,22 @@
 		 (size (igo-state-size gamestate))
 		 (w (car size))
 		 (h (cdr size)))
-	(cl-loop for i from 1 to w
-			 do (progn (cl-loop for j from 1 to h
+
+	(if igo-show-labels
+		(progn (insert "  ")
+			   (cl-loop for i from 0 to (- w 1)
+						do (insert (string (+ ?a i) ?\s)))))
+	
+	(newline)
+	(cl-loop for j from 1 to h
+			 do (progn (if igo-show-labels (insert (string (+ ?A (- j 1)) ?\s)))
+					   (cl-loop for i from 1 to w
 								do (igo-draw-position i j w h gamestate))
 					   (newline)))))
+
+;; (let ((state (igo-new-gamestate (cons 9 9))))
+;;   (newline)
+;;   (igo-draw-goban state))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; igo-mode definition
