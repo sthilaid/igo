@@ -283,31 +283,31 @@
 		'oob
 	  (elt (elt gamestate j-index) i-index))))
 
-(defun igo-get-group (coord gamestate)
-  (let ((current (igo-state-get coord gamestate)))
-	(if (or (not current)
-			(eq current 'oob))
-		nil
-	  (let* ((i (car coord))
-			 (j (cdr coord))
-			 (neighbours (list (cons (- i 1) j)
-							   (cons (+ i 1) j)
-							   (cons i (- j 1))
-							   (cons i (+ j 1)))))
-		(let ((accumulate-neighbours (lambda (acc neighbour-coord)
-									   (let ((neighbour-position (igo-state-get neighbour-coord gamestate)))
-										 (if (eq neighbour-position current)
-											 (append (cons neighbour-coord acc) (igo-get-group neighbour-coord gamestate))
-										   acc)))))
-		  (seq-reduce accumulate-neighbours neighbours (list coord)))))))
+(defun igo-get-neighbours (coord)
+  (let* ((i (car coord))
+		 (j (cdr coord)))
+	(list (cons (- i 1) j)
+		  (cons (+ i 1) j)
+		  (cons i (- j 1))
+		  (cons i (+ j 1)))))
 
-(let ((state (igo-new-gamestate (cons 9 9))))
-  (igo-play-move 'w '(1 . 1) state)
-  (igo-play-move 'w '(1 . 2) state)
-  (igo-play-move 'w '(1 . 3) state)
-  (igo-play-move 'w '(2 . 3) state)
-  (igo-play-move 'w '(3 . 3) state)
-  (igo-get-group '(2 . 3) state))
+(defun igo-get-group (start-coord gamestate)
+  (let* ((group-type (igo-state-get start-coord gamestate)))
+	(cl-labels ((get-group-rec (acc coord)
+							   ;;(debug `(coord: ,coord acc: ,acc))
+							   (let ((current (igo-state-get coord gamestate)))
+								 (cond ((not (eq current group-type))			acc)
+									   ((member coord acc)						acc)
+									   (t (let* ((neighbours (igo-get-neighbours coord)))
+											(seq-reduce (lambda (a c) (get-group-rec a c)) neighbours (cons coord acc))))))))
+	  (get-group-rec '() start-coord))))
+
+(defun igo-get-liberties (coord gamestate)
+  (let ((group (igo-get-group coord gamestate)))
+	(cl-loop for group-coord in group
+			 sum (cl-loop for neighbour-coord in (igo-get-neighbours group-coord)
+						  sum (let ((neighbour-value (igo-state-get neighbour-coord gamestate)))
+								(if (not neighbour-value) 1 0))))))
 
 (define-error 'igo-error-invalid-player "Invalid player used in game of go, should be 'b or 'w")
 
@@ -322,6 +322,16 @@
 
 	;; todo: check for conneciton and liberties...
 	(aset (elt gamestate j-index) i-index player)))
+
+;; (let ((state (igo-new-gamestate (cons 9 9))))
+;;   (igo-play-move 'w '(1 . 1) state)
+;;   (igo-play-move 'w '(1 . 2) state)
+;;   (igo-play-move 'w '(1 . 3) state)
+;;   (igo-play-move 'b '(2 . 1) state)
+;;   (igo-play-move 'b '(2 . 2) state)
+;;   (igo-play-move 'b '(2 . 3) state)
+;;   (igo-play-move 'b '(1 . 4) state)
+;;   (igo-get-liberties '(1 . 1) state))
 
 (defun igo-is-star-coord? (i j w h)
   (let* ((w-star-dist (if (< w 13) 3 4))
