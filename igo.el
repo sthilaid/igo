@@ -6,7 +6,8 @@
 (setq igo-buffer-name "*igo*")
 (setq igo-show-labels 't)
 (setq igo-current-mode nil) ;; play | 
-(setq igo-current-gamestate (igo-new-gamestate (cons 19 19)))
+(setq igo-current-gamestate nil)
+(setq igo-play-current-move (cons nil nil))
 (setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
                          (if (file-exists-p ex-game-file)
                              (with-temp-buffer
@@ -448,13 +449,24 @@
 		(signal 'igo-error-invalid-coord (list (cons col row))))
 	(cons col row)))
 
+(defun igo-play-set-col (char)
+  (setcar igo-play-current-move char))
+
+(defun igo-play-set-row (char)
+  (setcdr igo-play-current-move char))
+
+;; (defmacro igo-gen-play-key-fun (fun key)
+;;   `(lambda () (interactive) (,fun ,(eval key))))
+
 (defun igo-play-mode-map ()
   (let ((size (igo-state-size igo-current-gamestate))
 		(map (make-sparse-keymap)))
+    (set-keymap-parent map special-mode-map)
 	(cl-loop for i from ?a to (+ ?a (cdr size))
-			 do (define-key map (string i) (lambda () (igo-play-set-col i))))
+			 do (define-key map (string i) (lambda () (interactive) (igo-play-set-col i))
+                  ))
 	(cl-loop for i from ?A to (+ ?A (car size))
-			 do (define-key map (string i) (lambda () (igo-play-set-row i))))
+			 do (define-key map (string i) (lambda () (interactive) (igo-play-set-row i))))
 	map))
 
 (defun igo-play-mode ()
@@ -464,7 +476,12 @@
   (if (eq igo-current-mode 'play)
 	  (setq igo-mode-map (igo-play-mode-map))
 	(setq igo-mode-map (igo-default-map)))
-  (message igo-current-mode))
+
+  (if (eq (current-buffer)
+          (get-buffer-create igo-buffer-name))
+      (use-local-map igo-mode-map))
+  
+  (message (concat "igo current mode: "(symbol-name igo-current-mode))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; igo-mode definition
@@ -482,18 +499,9 @@
 
 (defun igo-default-map ()
   (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map special-mode-map)
 	(define-key map "p" 'igo-play-next-move)
 	;; (define-key map (kbd "<C-M-backspace>") 'ide-grep-solution)
-	;; (define-key map (kbd "<C-M-return>") 'ide-grep-project)
-
-	;; (define-key map (kbd "C-M-'") 'ide-find-file)
-	;; (define-key map (kbd "M-o") 'ide-find-other-file)
-	;; (define-key map (kbd "C-M-o") 'ide-find-and-create-other-file)
-
-	;; (define-key map (kbd "<f7>")	'ide-quick-compile)
-	;; (define-key map (kbd "M-<f7>")	'ide-compile-solution)
-	;; (define-key map (kbd "C-<f7>")	'ide-compile-project)
-
 	map))
 
 (setq igo-mode-map (igo-default-map))
@@ -505,3 +513,4 @@
   )
 
 (provide 'igo)
+
