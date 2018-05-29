@@ -358,11 +358,11 @@
 		(signal 'igo-error-invalid-move (list (concat "Ko rule: cannot play where a single stone was just capture..."))))
 
 	(igo-state-set-ko nil gamestate) ; reset ko
-	(igo-state-set coord state player)
+	(igo-state-set coord gamestate player)
 
 	(let ((group-liberties (igo-get-liberties (igo-get-group coord gamestate) gamestate)))
 	  (if (= group-liberties 0)
-		  (progn (igo-state-set coord state nil)
+		  (progn (igo-state-set coord gamestate nil)
 				 (signal 'igo-error-invalid-move (list (concat "Suicide move are not allowed..."))))))
 
 	(let ((other-player (igo-other-player player))
@@ -445,8 +445,9 @@
 
 (defun igo-redraw ()
   (if (igo-is-igo-buffer?)
-      (progn (erase-buffer)
-             (igo-draw-goban igo-current-gamestate))))
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (igo-draw-goban igo-current-gamestate))))
 
 (defun igo-read-coord (gamestate)
   (let* ((play-str (read-string "coord: " nil nil))
@@ -460,12 +461,39 @@
 		(signal 'igo-error-invalid-coord (list (cons col row))))
 	(cons col row)))
 
+(defun igo-get-buffer-position (col row)
+  (save-excursion
+    (goto-char (point-min))
+    (forward-line row)
+    (move-to-column col)
+    (point)))
+
+(defun igo-get-line-end (buff-pos)
+  (save-excursion
+    (goto-char buff-pos)
+    (end-of-line)
+    (point)))
+
+(defun igo-convert-string-coord-to-coord (str-coord)
+  (cons (- (car str-coord) ?a -1)
+        (- (cdr str-coord) ?A -1)))
+
+;; (let ((x (make-overlay start end)))
+;;   (overlay-put x 'face '(:background "grey20")))
+
 (defun igo-display-current-move ()
   (let* ((col (car igo-play-current-move))
          (row (cdr igo-play-current-move))
          (col-char (if col col ??))
          (row-char (if row row ??)))
-   (message (concat "Next move for " (symbol-name igo-play-current-player) ":" (string col-char row-char) " press [enter] to submit or ctl-g to abort"))))
+    ;; (let* ((coord (igo-convert-string-coord-to-coord igo-play-current-move))
+    ;;        (value (igo-state-get coord igo-current-gamestate)))
+    ;;   (if (not (eq value 'oob))
+    ;;       (let* ((row-start (igo-get-buffer-position 0 (cdr coord)))
+    ;;              (row-end (igo-get-line-end row-start)))
+    ;;         (overlay-put (make-overlay row-start row-end) 'face '(:background "grey20")))))
+    
+    (message (concat "Next move for " (symbol-name igo-play-current-player) ":" (string col-char row-char) " press [enter] to submit or ctl-g to abort"))))
 
 (defun igo-play-set-col (char)
   (setcar igo-play-current-move char)
@@ -483,16 +511,19 @@
   (interactive)
   (if (or (not (car igo-play-current-move)) (not (cdr igo-play-current-move)))
       (signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
-  (let* ((coord (cons (- (car igo-play-current-move) ?a -1)
-                      (- (cdr igo-play-current-move) ?A -1)))
+  (let* ((coord (igo-convert-string-coord-to-coord igo-play-current-move))
          (value (igo-state-get coord igo-current-gamestate)))
     (if (eq value 'oob)
         (signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
-    (igo-play-move 'igo-play-current-player coord igo-current-gamestate)
+    (igo-play-move igo-play-current-player coord igo-current-gamestate)
     (setq igo-play-current-move (cons nil nil))
     (setq igo-play-current-player (igo-other-player igo-play-current-player))
     (igo-redraw)
     (igo-display-current-move)))
+
+(defun igo-exit-play-mode ()
+  (interactive)
+  (igo-play-mode nil))
 
 (defun igo-play-mode-map ()
   (let ((size (igo-state-size igo-current-gamestate))
@@ -501,12 +532,15 @@
     (igo-gen-play-key-fun igo-play-set-col ?a ?z)
     (igo-gen-play-key-fun igo-play-set-row ?A ?Z)
     (define-key map (kbd "<return>") 'igo-play-commit-move)
-    (define-key map (kbd "<C-g>") 'igo-exit-play-mode)
+    (define-key map (kbd "<end>") 'igo-exit-play-mode)
 	map))
 
-(defun igo-play-mode ()
+(defun igo-play-mode (&optional optionalNewMode)
   (interactive)
-  (setq igo-current-mode (if (eq igo-current-mode 'play) nil 'play))
+  (let ((next-mode (if optionalNewMode
+                       optionalNewMode
+                     (if (eq igo-current-mode 'play) nil 'play))))
+   (setq igo-current-mode next-mode))
 
   (if (eq igo-current-mode 'play)
 	  (setq igo-mode-map (igo-play-mode-map))
