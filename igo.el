@@ -2,18 +2,24 @@
 (define-error 'igo-error-invalid-player "Invalid player used in game of go, should be 'b or 'w")
 (define-error 'igo-error-invalid-move "Played move is not valid: ")
 (define-error 'igo-error-invalid-coord "Invalid coordinate: ")
+(define-error 'igo-error-invalid-move-input "Invalid move input: ")
 
 (setq igo-buffer-name "*igo*")
 (setq igo-show-labels 't)
 (setq igo-current-mode nil) ;; play | 
 (setq igo-current-gamestate nil)
 (setq igo-play-current-move (cons nil nil))
+(setq igo-play-current-player 'b)
 (setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
                          (if (file-exists-p ex-game-file)
                              (with-temp-buffer
                                (insert-file-contents ex-game-file)
                                (buffer-string))
                            "")))
+
+(defun igo-is-igo-buffer? ()
+  (string= (buffer-name (current-buffer))
+           igo-buffer-name))
 
 ;; TEMPORARY
 (setq max-specpdl-size 50000)
@@ -437,6 +443,11 @@
 ;;   (newline)
 ;;   (igo-draw-goban state))
 
+(defun igo-redraw ()
+  (if (igo-is-igo-buffer?)
+      (progn (erase-buffer)
+             (igo-draw-goban igo-current-gamestate))))
+
 (defun igo-read-coord (gamestate)
   (let* ((play-str (read-string "coord: " nil nil))
 		 (col (+ (- (elt play-str 0) ?a) 1))
@@ -449,24 +460,48 @@
 		(signal 'igo-error-invalid-coord (list (cons col row))))
 	(cons col row)))
 
+(defun igo-display-current-move ()
+  (let* ((col (car igo-play-current-move))
+         (row (cdr igo-play-current-move))
+         (col-char (if col col ??))
+         (row-char (if row row ??)))
+   (message (concat "Next move for " (symbol-name igo-play-current-player) ":" (string col-char row-char) " press [enter] to submit or ctl-g to abort"))))
+
 (defun igo-play-set-col (char)
-  (setcar igo-play-current-move char))
+  (setcar igo-play-current-move char)
+  (igo-display-current-move))
 
 (defun igo-play-set-row (char)
-  (setcdr igo-play-current-move char))
+  (setcdr igo-play-current-move char)
+  (igo-display-current-move))
 
-;; (defmacro igo-gen-play-key-fun (fun key)
-;;   `(lambda () (interactive) (,fun ,(eval key))))
+(defmacro igo-gen-play-key-fun (fun start-char end-char)
+  (append '(progn) (cl-loop for i from start-char to end-char
+                            collect `(define-key map ,(string i) (lambda () (interactive) (,fun ,i))))))
+
+(defun igo-play-commit-move ()
+  (interactive)
+  (if (or (not (car igo-play-current-move)) (not (cdr igo-play-current-move)))
+      (signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
+  (let* ((coord (cons (- (car igo-play-current-move) ?a -1)
+                      (- (cdr igo-play-current-move) ?A -1)))
+         (value (igo-state-get coord igo-current-gamestate)))
+    (if (eq value 'oob)
+        (signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
+    (igo-play-move 'igo-play-current-player coord igo-current-gamestate)
+    (setq igo-play-current-move (cons nil nil))
+    (setq igo-play-current-player (igo-other-player igo-play-current-player))
+    (igo-redraw)
+    (igo-display-current-move)))
 
 (defun igo-play-mode-map ()
   (let ((size (igo-state-size igo-current-gamestate))
 		(map (make-sparse-keymap)))
     (set-keymap-parent map special-mode-map)
-	(cl-loop for i from ?a to (+ ?a (cdr size))
-			 do (define-key map (string i) (lambda () (interactive) (igo-play-set-col i))
-                  ))
-	(cl-loop for i from ?A to (+ ?A (car size))
-			 do (define-key map (string i) (lambda () (interactive) (igo-play-set-row i))))
+    (igo-gen-play-key-fun igo-play-set-col ?a ?z)
+    (igo-gen-play-key-fun igo-play-set-row ?A ?Z)
+    (define-key map (kbd "<return>") 'igo-play-commit-move)
+    (define-key map (kbd "<C-g>") 'igo-exit-play-mode)
 	map))
 
 (defun igo-play-mode ()
@@ -477,11 +512,12 @@
 	  (setq igo-mode-map (igo-play-mode-map))
 	(setq igo-mode-map (igo-default-map)))
 
-  (if (eq (current-buffer)
-          (get-buffer-create igo-buffer-name))
+  (if (igo-is-igo-buffer?)
       (use-local-map igo-mode-map))
   
-  (message (concat "igo current mode: "(symbol-name igo-current-mode))))
+  (if (eq igo-current-mode 'play)
+      (igo-display-current-move)
+    (message (concat "igo current mode: "(symbol-name igo-current-mode)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; igo-mode definition
@@ -493,7 +529,7 @@
     (switch-to-buffer igo-buffer)
     (igo-mode)
 	(setq igo-current-gamestate (igo-new-gamestate (cons 19 19)))
-	(igo-draw-goban igo-current-gamestate)))
+	(igo-redraw)))
 
 (defun igo-test () (interactive) (message "test"))
 
@@ -513,4 +549,3 @@
   )
 
 (provide 'igo)
-
