@@ -286,15 +286,18 @@
 	(cons w h)))
 
 (defun igo-state-get (coord gamestate)
-  (let* ((i-index (- (car coord) 1))
-		 (j-index (- (cdr coord) 1))
-		 (size (igo-state-size gamestate)))
-	(if (or (< i-index 0)
-			(< j-index 0)
-			(>= i-index (car size))
-			(>= j-index (cdr size)))
-		'oob
-	  (elt (elt (elt gamestate 0) j-index) i-index))))
+  (if (or (not (car coord))
+          (not (cdr coord)))
+      'invalid
+    (let* ((i-index (- (car coord) 1))
+           (j-index (- (cdr coord) 1))
+           (size (igo-state-size gamestate)))
+      (if (or (< i-index 0)
+              (< j-index 0)
+              (>= i-index (car size))
+              (>= j-index (cdr size)))
+          'oob
+        (elt (elt (elt gamestate 0) j-index) i-index)))))
 
 (defun igo-state-set (coord gamestate new-value)
   (let* ((i-index (- (car coord) 1))
@@ -414,12 +417,16 @@
 			 (= j h-center)
 			 (= j (- (+ h 1) h-star-dist))))))
 
+(defun igo-player-stone (player)
+  (cond ((eq player 'b) ?#)
+        ((eq player 'w) ?O)
+        (t nil)))
+
 (defun igo-draw-position (i j w h gamestate)
   (let ((position-value (igo-state-get (cons i j) gamestate)))
-	(cond ((eq position-value 'b)		(insert "# "))
-		  ((eq position-value 'w)		(insert "O "))
-		  ((igo-is-star-coord? i j w h)	(insert "+ "))
-		  (t							(insert ". ")))))
+	(cond ((igo-player-stone position-value)    (insert (string (igo-player-stone position-value) ?\s)))
+		  ((igo-is-star-coord? i j w h)         (insert "+ "))
+		  (t                                    (insert ". ")))))
 
 (defun igo-draw-goban (gamestate)
   (let* ((inhibit-read-only t)
@@ -465,7 +472,7 @@
   (save-excursion
     (goto-char (point-min))
     (forward-line row)
-    (move-to-column col)
+    (move-to-column (* col 2)) ; x2 for spaces
     (point)))
 
 (defun igo-get-line-end (buff-pos)
@@ -474,33 +481,67 @@
     (end-of-line)
     (point)))
 
-(defun igo-convert-string-coord-to-coord (str-coord)
-  (cons (- (car str-coord) ?a -1)
-        (- (cdr str-coord) ?A -1)))
+(defun igo-convert-char-coord-to-num-coord (char-coord)
+  (cl-labels ((convert-char (char base) (if (not char)
+                                            nil
+                                          (- char base -1))))
+    (cons (if (car char-coord) (convert-char (car char-coord) ?a) nil)
+          (if (cdr char-coord) (convert-char (cdr char-coord) ?A) nil))))
 
-;; (let ((x (make-overlay start end)))
-;;   (overlay-put x 'face '(:background "grey20")))
+(setq igo-active-overlays nil)
 
 (defun igo-display-current-move ()
-  (let* ((col (car igo-play-current-move))
-         (row (cdr igo-play-current-move))
-         (col-char (if col col ??))
-         (row-char (if row row ??)))
-    ;; (let* ((coord (igo-convert-string-coord-to-coord igo-play-current-move))
-    ;;        (value (igo-state-get coord igo-current-gamestate)))
-    ;;   (if (not (eq value 'oob))
-    ;;       (let* ((row-start (igo-get-buffer-position 0 (cdr coord)))
-    ;;              (row-end (igo-get-line-end row-start)))
-    ;;         (overlay-put (make-overlay row-start row-end) 'face '(:background "grey20")))))
-    
-    (message (concat "Next move for " (symbol-name igo-play-current-player) ":" (string col-char row-char) " press [enter] to submit or ctl-g to abort"))))
+  (let* ((coord (igo-convert-char-coord-to-num-coord igo-play-current-move))
+         (col-num (car coord))
+         (row-num (cdr coord))
+         (value (igo-state-get (cons col-num row-num) igo-current-gamestate)))
+    (if (not (eq value 'oob))
+        (progn (while igo-active-overlays
+                 (let ((overlay (pop igo-active-overlays)))
+                   (delete-overlay overlay)))
+               (if row-num
+                   (cl-loop for c from 0 to 20
+                            do (if (or (not col-num) (not (= c col-num)))
+                                   (let* ((row-position  (igo-get-buffer-position c row-num))
+                                          (row-overlay (make-overlay row-position (min (+ row-position 2) (save-excursion (goto-char row-position) (line-end-position))))))
+                                     (push row-overlay igo-active-overlays)
+                                     (overlay-put row-overlay 'face '(:background "grey80"))))))
+               (if col-num
+                   (cl-loop for r from 0 to 20
+                            do (if (or (not row-num) (not (= r row-num)))
+                                   (let* ((col-position  (igo-get-buffer-position col-num r))
+                                          (col-overlay (make-overlay col-position (+ col-position 1))))
+                                     (push col-overlay igo-active-overlays)
+                                     (overlay-put col-overlay 'face '(:background "grey80"))))))
+               (if (or (eq value 'b) (eq value 'w) (not value))
+                   (let* ((move-pos  (igo-get-buffer-position col-num row-num))
+                          (move-overlay (make-overlay move-pos (+ move-pos 1)))
+                          (move-overlay-border (make-overlay (+ move-pos 1) (+ move-pos 2)))
+                          (color (if value "red10" "green10")))
+                     (push move-overlay igo-active-overlays)
+                     (push move-overlay-border igo-active-overlays)
+                     (overlay-put move-overlay 'face `(:background ,color))
+                     (overlay-put move-overlay-border 'face `(:background "grey80"))))
+
+               (if (not value)
+                   (let ((move-position (igo-get-buffer-position col-num row-num))
+                         (inhibit-read-only t))
+                     (save-excursion
+                       (goto-char move-position)
+                       (delete-char 1)
+                       (insert (igo-player-stone igo-play-current-player)))))))
+    (let ((col-char (if (car igo-play-current-move) (car igo-play-current-move) ??))
+          (row-char (if (cdr igo-play-current-move) (cdr igo-play-current-move) ??)))
+      (message (concat "Next move for " (symbol-name igo-play-current-player) ":" (string col-char row-char) " press [enter] to submit or ctl-g to abort")))))
 
 (defun igo-play-set-col (char)
   (setcar igo-play-current-move char)
+  (igo-redraw)
   (igo-display-current-move))
 
 (defun igo-play-set-row (char)
   (setcdr igo-play-current-move char)
+  (igo-redraw)
   (igo-display-current-move))
 
 (defmacro igo-gen-play-key-fun (fun start-char end-char)
@@ -511,7 +552,7 @@
   (interactive)
   (if (or (not (car igo-play-current-move)) (not (cdr igo-play-current-move)))
       (signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
-  (let* ((coord (igo-convert-string-coord-to-coord igo-play-current-move))
+  (let* ((coord (igo-convert-char-coord-to-num-coord igo-play-current-move))
          (value (igo-state-get coord igo-current-gamestate)))
     (if (eq value 'oob)
         (signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
@@ -550,7 +591,9 @@
       (use-local-map igo-mode-map))
   
   (if (eq igo-current-mode 'play)
-      (igo-display-current-move)
+      (progn
+        (igo-redraw)
+        (igo-display-current-move))
     (message (concat "igo current mode: "(symbol-name igo-current-mode)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
