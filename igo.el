@@ -20,14 +20,15 @@
 ;;                                (buffer-string))
 ;;                            "")))
 
-;; (setq igo-examble-game (let ((ex-game-file "c:/Users/dsthillaire/Downloads/9989-Lebertran-hkkmomo-zaphod.sgf"))
-;;                          (if (file-exists-p ex-game-file)
-;;                              (with-temp-buffer
-;;                                (insert-file-contents ex-game-file)
-;;                                (buffer-string))
-;;                            "")))
-;; (pp (igo-parse-sgf-collection igo-examble-game))
-;;()
+(setq igo-examble-game (let ((ex-game-file "c:/Users/dsthillaire/Downloads/9989-Lebertran-hkkmomo-zaphod.sgf"))
+                         (if (file-exists-p ex-game-file)
+                             (with-temp-buffer
+                               (insert-file-contents ex-game-file)
+                               (buffer-string))
+                           "")))
+(with-output-to-temp-buffer (generate-new-buffer-name "igo-examble-game")
+    (pp (igo-sgf-parse-str igo-examble-game)))
+
 
 (defun igo-is-igo-buffer? ()
   (string= (buffer-name (current-buffer))
@@ -277,9 +278,62 @@
 
 ;;(pp (igo-parse-sgf-collection "(;A[1])(B[2])"))
 
-(defun igo-sgf-parsing (sgf-data)
+(defun igo-sgf-parse-str (sgf-str)
   "Converts sgf game into internal igo-mode format."
-  'todo)
+  (car (igo-parse-sgf-collection sgf-str)))
+
+(defun igo-sgf-collection-get-gametrees (sgf-data)
+  (if (not (eq (car sgf-data) 'collection-list))
+      (signal igo-error-invalid-sgf-data (list "expecting 'collection-list got: " (car sgf-data))))
+  (cdr sgf-data))
+
+(defun igo-sgf-gametree-get-sequence (sgf-data)
+  (let ((tag 'gametree))
+    (if (not (eq (car sgf-data) tag))
+        (signal igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
+  (elt sgf-data 1))
+
+(defun igo-sgf-sequence-get-nodes (sgf-data)
+  (let ((tag 'sequence-list))
+    (if (not (eq (car sgf-data) tag))
+        (signal igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
+  (cdr sgf-data))
+
+(defun igo-sgf-node-get-properties (sgf-data)
+  (let ((tag 'property-list))
+    (if (not (eq (car sgf-data) tag))
+        (signal igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
+  (cdr sgf-data))
+
+(defun igo-sgf-property-get-ident (sgf-data)
+  (if (not (stringp (car sgf-data)))
+      (signal igo-error-invalid-sgf-data (list "expecting string type for property ident, got: " (car sgf-data))))
+  (car sgf-data))
+
+(defun igo-sgf-property-get-values (sgf-data)
+  (let ((tag 'value-list))
+    (if (not (eq (car sgf-data) tag))
+        (signal igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
+  (cdr sgf-data))
+
+(defun igo-sgf-apply-property (sgf-data)
+  (let ((identifier (igo-sgf-property-get-ident sgf-data))
+        (values     (igo-sgf-property-get-values sgf-data)))
+   (cond ;; move
+         ((string= identifier "B")      '(black-move            move))
+         ((string= identifier "W")      '(white-move            move))
+         ((string= identifier "KO")     '(optional-force-move   move))
+         ((string= identifier "MN")     '(set-move-number       number))
+         ;; setup
+         ((string= identifier "AB")     '(add-black-stone       stone-list))
+         ((string= identifier "AW")     '(add-white-stone       stone-list))
+         ((string= identifier "AE")     '(add-empty-stone       point-list))
+         ((string= identifier "PL")     '(change-turn-to-play   color))
+         ((string= identifier "PL")     '(change-turn-to-play   color))
+         ;; annotations
+         
+         ))
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game State
@@ -346,16 +400,18 @@
 (defun igo-gameflow-set-flow (gameflow flow)
   (aset gameflow 1 flow))
 
-;; (defun igo-gameflow-apply (gameflow gamestate)
-;;   (let ((new-gamestate (igo-new-gamestate (igo-state-size gamestate)))
-;;         (path (igo-gameflow-get-path gameflow)))
-;;     (cl-loop for path-element in path
-;;              do (let ((branch   (car path-element))
-;;                       (count    (cdr path-element)))
-;;                   ;; find right branch in flow
-;;                   ;; apply count moves from that branch
-;;                   (cl-loop n from 1 to count
-;;                            do)))))
+(defun igo-gameflow-apply (gameflow gamestate)
+  (let ((new-gamestate (igo-new-gamestate (igo-state-size gamestate)))
+        (path (igo-gameflow-get-path gameflow))
+        (flow (igo-gameflow-get-flow gameflow)))
+    (cl-loop for path-element in path
+             do (let ((branch   (car path-element))
+                      (count    (cdr path-element)))
+                  ;; find right branch in flow
+                  ;; apply count moves from that branch
+                  (cl-loop n from 1 to count
+                           do (progn
+                                ))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game Internals
