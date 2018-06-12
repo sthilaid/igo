@@ -6,18 +6,28 @@
 
 (setq igo-buffer-name "*igo*")
 (setq igo-show-labels 't)
-(setq igo-current-mode nil) ;; play | 
+(setq igo-current-mode nil)
 (setq igo-current-gamestate nil)
+(setq igo-current-gameflow nil)
 (setq igo-play-last-move (cons nil nil))
 (setq igo-play-current-move (cons nil nil))
 (setq igo-play-current-player 'b)
 (setq igo-active-overlays nil)
-(setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
-                         (if (file-exists-p ex-game-file)
-                             (with-temp-buffer
-                               (insert-file-contents ex-game-file)
-                               (buffer-string))
-                           "")))
+;; (setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
+;;                          (if (file-exists-p ex-game-file)
+;;                              (with-temp-buffer
+;;                                (insert-file-contents ex-game-file)
+;;                                (buffer-string))
+;;                            "")))
+
+;; (setq igo-examble-game (let ((ex-game-file "c:/Users/dsthillaire/Downloads/9989-Lebertran-hkkmomo-zaphod.sgf"))
+;;                          (if (file-exists-p ex-game-file)
+;;                              (with-temp-buffer
+;;                                (insert-file-contents ex-game-file)
+;;                                (buffer-string))
+;;                            "")))
+;; (pp (igo-parse-sgf-collection igo-examble-game))
+;;()
 
 (defun igo-is-igo-buffer? ()
   (string= (buffer-name (current-buffer))
@@ -272,7 +282,7 @@
   'todo)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Go Game
+;; Go Game State
 
 (defun igo-new-gamestate (size)
   (let* ((w (car size))
@@ -317,6 +327,39 @@
 
 (defun igo-state-set-ko (ko-coord gamestate)
   (aset (elt gamestate 3) 1 ko-coord))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Go Game Flow
+
+(defun igo-new-gameflow ()
+  (vector nil nil))
+
+(defun igo-gameflow-get-path (gameflow)
+  (elt gameflow 0))
+
+(defun igo-gameflow-get-flow (gameflow)
+  (elt gameflow 1))
+
+(defun igo-gameflow-set-path (gameflow path)
+  (aset gameflow 0 path))
+
+(defun igo-gameflow-set-flow (gameflow flow)
+  (aset gameflow 1 flow))
+
+;; (defun igo-gameflow-apply (gameflow gamestate)
+;;   (let ((new-gamestate (igo-new-gamestate (igo-state-size gamestate)))
+;;         (path (igo-gameflow-get-path gameflow)))
+;;     (cl-loop for path-element in path
+;;              do (let ((branch   (car path-element))
+;;                       (count    (cdr path-element)))
+;;                   ;; find right branch in flow
+;;                   ;; apply count moves from that branch
+;;                   (cl-loop n from 1 to count
+;;                            do)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Go Game Internals
+
 
 (defun igo-get-neighbours (coord)
   (let* ((i (car coord))
@@ -448,6 +491,20 @@
 								do (igo-draw-position i j w h gamestate))
 					   (newline)))))
 
+(defun igo-draw-gameinfo (gamestate)
+  (let* ((inhibit-read-only t)
+		 (width (car (igo-state-size gamestate)))
+         (black-captures (igo-state-get-capture 'b gamestate))
+         (white-captures (igo-state-get-capture 'w gamestate))
+         (black-str (concat "black: " (number-to-string black-captures)))
+         (white-str (concat "white: " (number-to-string white-captures)))
+         (header "- Captures -")
+         (padding-count (max 0 (- (* 2 width) (+ (length black-str) (length white-str) (length header)))))
+         (pad (max 1 (/ padding-count 4)))
+         (pad-str (make-string pad ?\s)))
+    (insert pad-str header pad-str black-str pad-str white-str pad-str)
+    (newline)))
+
 ;; (let ((state (igo-new-gamestate (cons 9 9))))
 ;;   (newline)
 ;;   (igo-draw-goban state))
@@ -456,7 +513,8 @@
   (if (igo-is-igo-buffer?)
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (igo-draw-goban igo-current-gamestate))))
+        (igo-draw-goban igo-current-gamestate)
+        (igo-draw-gameinfo igo-current-gamestate))))
 
 (defun igo-read-coord (gamestate)
   (let* ((play-str (read-string "coord: " nil nil))
@@ -495,6 +553,9 @@
 
 (defun igo-display-current-move ()
   (let* ((coord (igo-convert-char-coord-to-num-coord igo-play-current-move))
+         (board-size (igo-state-size igo-current-gamestate))
+         (board-width (car board-size))
+         (board-height (cdr board-size))
          (col-num (car coord))
          (row-num (cdr coord))
          (value (igo-state-get (cons col-num row-num) igo-current-gamestate)))
@@ -514,7 +575,7 @@
 
                ;; add row highlight overlay
                (if row-num
-                   (cl-loop for c from 0 to 20
+                   (cl-loop for c from 0 to board-height
                             do (if (or (not col-num) (not (= c col-num)))
                                    (let* ((row-position  (igo-get-buffer-position c row-num))
                                           (row-overlay (make-overlay row-position (min (+ row-position 2) (save-excursion (goto-char row-position) (line-end-position))))))
@@ -522,7 +583,7 @@
                                      (overlay-put row-overlay 'face '(:background "grey80"))))))
                ;; add col highlight overlay
                (if col-num
-                   (cl-loop for r from 0 to 20
+                   (cl-loop for r from 0 to board-width
                             do (if (or (not row-num) (not (= r row-num)))
                                    (let* ((col-position  (igo-get-buffer-position col-num r))
                                           (col-overlay (make-overlay col-position (+ col-position 1))))
