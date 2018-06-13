@@ -3,6 +3,9 @@
 (define-error 'igo-error-invalid-move "Played move is not valid: ")
 (define-error 'igo-error-invalid-coord "Invalid coordinate: ")
 (define-error 'igo-error-invalid-move-input "Invalid move input: ")
+(define-error 'igo-error-unknown-property "Unknown property: ")
+(define-error 'igo-error-invalid-property-values "Invalid property values for type: ")
+(define-error 'igo-error-invalid-sgf-data "Invalid sgf data: ")
 
 (setq igo-buffer-name "*igo*")
 (setq igo-show-labels 't)
@@ -20,14 +23,14 @@
 ;;                                (buffer-string))
 ;;                            "")))
 
-(setq igo-examble-game (let ((ex-game-file "c:/Users/dsthillaire/Downloads/9989-Lebertran-hkkmomo-zaphod.sgf"))
-                         (if (file-exists-p ex-game-file)
-                             (with-temp-buffer
-                               (insert-file-contents ex-game-file)
-                               (buffer-string))
-                           "")))
-(with-output-to-temp-buffer (generate-new-buffer-name "igo-examble-game")
-    (pp (igo-sgf-parse-str igo-examble-game)))
+;; (setq igo-examble-game (let ((ex-game-file "c:/Users/dsthillaire/Downloads/9989-Lebertran-hkkmomo-zaphod.sgf"))
+;;                          (if (file-exists-p ex-game-file)
+;;                              (with-temp-buffer
+;;                                (insert-file-contents ex-game-file)
+;;                                (buffer-string))
+;;                            "")))
+;; (with-output-to-temp-buffer (generate-new-buffer-name "igo-examble-game")
+;;     (pp (igo-sgf-parse-str igo-examble-game)))
 
 
 (defun igo-is-igo-buffer? ()
@@ -81,9 +84,9 @@
       (= c ?\r)
       (= c ?\f)))
 
-(cl-loop for c across "(allo)"
-         for i from 0 to (length "(allo)")
-         collect (cons c i))
+;; (cl-loop for c across "(allo)"
+;;          for i from 0 to (length "(allo)")
+;;          collect (cons c i))
 
 (defun igo-parse-next-token (str token)
   (if (> (length token) 0)
@@ -148,7 +151,7 @@
   (cl-labels ((parse-double (str) (if (and (>= (length str) 2)
 										   (let ((char (elt str 0))) (or (= char ?1) (= char ?2)))
 										   (= (elt str 1) ?\]))
-									  (cons (list 'double (elt str 0)) (substring str 1))
+									  (cons (list 'double (string (elt str 0))) (substring str 1))
 									nil))
 			  (parse-color (str) (if (and (>= (length str) 2)
 										  (let ((char (elt str 0))) (or (= char ?B) (= char ?W)))
@@ -284,56 +287,177 @@
 
 (defun igo-sgf-collection-get-gametrees (sgf-data)
   (if (not (eq (car sgf-data) 'collection-list))
-      (signal igo-error-invalid-sgf-data (list "expecting 'collection-list got: " (car sgf-data))))
+      (signal 'igo-error-invalid-sgf-data (list "expecting 'collection-list got: " (car sgf-data))))
   (cdr sgf-data))
 
 (defun igo-sgf-gametree-get-sequence (sgf-data)
   (let ((tag 'gametree))
     (if (not (eq (car sgf-data) tag))
-        (signal igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
+        (signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
   (elt sgf-data 1))
 
 (defun igo-sgf-sequence-get-nodes (sgf-data)
   (let ((tag 'sequence-list))
     (if (not (eq (car sgf-data) tag))
-        (signal igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
+        (signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
   (cdr sgf-data))
 
 (defun igo-sgf-node-get-properties (sgf-data)
   (let ((tag 'property-list))
     (if (not (eq (car sgf-data) tag))
-        (signal igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
+        (signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
   (cdr sgf-data))
 
 (defun igo-sgf-property-get-ident (sgf-data)
   (if (not (stringp (car sgf-data)))
-      (signal igo-error-invalid-sgf-data (list "expecting string type for property ident, got: " (car sgf-data))))
+      (signal 'igo-error-invalid-sgf-data (list "expecting string type for property ident, got: " (car sgf-data))))
   (car sgf-data))
 
 (defun igo-sgf-property-get-values (sgf-data)
   (let ((tag 'value-list))
-    (if (not (eq (car sgf-data) tag))
-        (signal igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
-  (cdr sgf-data))
+    (if (or (not (consp sgf-data))
+            (not (consp (cdr sgf-data)))
+            (not (listp (cadr sgf-data)))
+            (not (eq (caadr sgf-data) tag))
+            (not (listp (cdadr sgf-data))))
+        (signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(caadr sgf-data)))))
+  (cdadr sgf-data))
 
-(defun igo-sgf-apply-property (sgf-data)
-  (let ((identifier (igo-sgf-property-get-ident sgf-data))
+;;(igo-sgf-property-get-values '("W" (value-list (text "eh"))))
+
+(defun igo-sgf-property-get-move-value (sgf-data)
+  (let ((values (igo-sgf-property-get-values sgf-data)))
+    (if (or (not (= (length values) 1))
+            (not (eq (caar values) 'text))
+            (not (stringp (cadar values))))
+        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'move)))
+    (cadar values)))
+
+;;(igo-sgf-property-get-move-value '("W" (value-list (text "eh"))))
+
+(defun igo-sgf-property-get-move-list-value (sgf-data)
+  (let ((values (igo-sgf-property-get-values sgf-data)))
+    (if (= (length values) 0)
+        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'move-list)))
+    (mapcar (lambda (value) (igo-sgf-property-get-move-value (list (car sgf-data) (list 'value-list value))))
+            values)))
+
+;; (igo-sgf-property-get-move-list-value '("AB" (value-list (text "dd")
+;;                                                          (text "pd")
+;;                                                          (text "dp")
+;;                                                          (text "pp"))))
+
+(defun igo-sgf-property-get-number-value (sgf-data)
+  (let ((values (igo-sgf-property-get-values sgf-data)))
+    (if (or (not (= (length values) 1))
+            (not (eq (caar values) 'number))
+            (not (stringp (cadar values))))
+        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'number)))
+    (string-to-number (cadar values))))
+
+;;(igo-sgf-property-get-number-value '("HA" (value-list (number "4"))))
+
+(defun igo-sgf-property-get-double-value (sgf-data)
+  (let ((values (igo-sgf-property-get-values sgf-data)))
+    (if (or (not (= (length values) 1))
+            (not (eq (caar values) 'double))
+            (not (stringp (cadar values))))
+        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'double)))
+    (let ((double-value (string-to-number (cadar values))))
+      (if (not (or (= double-value 1)
+                   (= double-value 2)))
+          (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'double))
+        double-value))))
+
+(defun igo-sgf-apply-property (sgf-property)
+  (let ((identifier (igo-sgf-property-get-ident sgf-property))
         (values     (igo-sgf-property-get-values sgf-data)))
-   (cond ;; move
-         ((string= identifier "B")      '(black-move            move))
-         ((string= identifier "W")      '(white-move            move))
-         ((string= identifier "KO")     '(optional-force-move   move))
-         ((string= identifier "MN")     '(set-move-number       number))
-         ;; setup
-         ((string= identifier "AB")     '(add-black-stone       stone-list))
-         ((string= identifier "AW")     '(add-white-stone       stone-list))
-         ((string= identifier "AE")     '(add-empty-stone       point-list))
-         ((string= identifier "PL")     '(change-turn-to-play   color))
-         ((string= identifier "PL")     '(change-turn-to-play   color))
-         ;; annotations
-         
-         ))
-  )
+    (cond
+     ;; move
+     ((string= identifier "B")      '(black-move            move))
+     ((string= identifier "W")      '(white-move            move))
+     ((string= identifier "KO")     '(optional-force-move   move))
+     ;;((string= identifier "MN")     '(set-move-number       number))
+
+     ;; setup
+     ((string= identifier "AB")     '(add-black-stone       move-list))
+     ((string= identifier "AW")     '(add-white-stone       move-list))
+     ((string= identifier "AE")     '(add-empty-stone       move-list))
+     ((string= identifier "PL")     '(change-turn-to-play   color))
+
+     ;; node annotations (double 1: good 2: very good)
+     ((string= identifier "N")      '(node-name             text)) ; short comment
+     ((string= identifier "C")      '(comment               text))
+     ((string= identifier "DM")     '(even-position         double))
+     ((string= identifier "GB")     '(good-for-black        double))
+     ((string= identifier "GW")     '(good-for-white        double))
+     ((string= identifier "UC")     '(position-unclear      double))
+     ((string= identifier "HO")     '(node-is-hotspot       double))
+     ((string= identifier "V")      '(node-value            real)) ; positive good for white, neg good for black
+
+     ;; nove annotations
+     ((string= identifier "BM")     '(bad-move              double))
+     ((string= identifier "DO")     '(doubtful-move         nil))
+     ((string= identifier "IT")     '(interesting-move      nil))
+     ((string= identifier "TE")     '(tesuji-move           double))
+
+     ;; markup
+     ;;((string= identifier "AR")     '(arror                 move : move))
+     ;;((string= identifier "LN")     '(line                  move : move))
+     ;;((string= identifier "VW")     '(board-text            move : text))
+     ((string= identifier "CR")     '(circle                move-list))
+     ((string= identifier "DD")     '(greyed                move-list))
+     ((string= identifier "MA")     '(mark                  move-list))
+     ((string= identifier "SQ")     '(square                move-list))
+     ((string= identifier "TR")     '(triangle              move-list))
+
+     ;; root
+     ((string= identifier "AP")     '(sgf-app-and-version   text))      ; "app:version"
+     ((string= identifier "CA")     '(charset               text))
+     ((string= identifier "FF")     '(file-format           number))    ; 1-4
+     ((string= identifier "GM")     '(game-type             number))    ; 1-16, 1: Go
+     ((string= identifier "ST")     '(variation-style       number))    ; 0-3
+     ((string= identifier "SZ")     '(board-size            size))      ; number or number:number
+
+     ;; game info
+     ((string= identifier "AN")     '(annotator-name        text))
+     ((string= identifier "BR")     '(black-rank            text))
+     ((string= identifier "BT")     '(black-team            text))
+     ((string= identifier "CP")     '(copyright             text))
+     ((string= identifier "DT")     '(date                  text))
+     ((string= identifier "EV")     '(event                 text))
+     ((string= identifier "GN")     '(game-name             text))
+     ((string= identifier "GC")     '(game-comment          text))
+     ((string= identifier "ON")     '(opening-info          text))
+     ((string= identifier "OT")     '(overtime-type         text))
+     ((string= identifier "PB")     '(black-player-name     text))
+     ((string= identifier "PC")     '(game-place            text))
+     ((string= identifier "PW")     '(white-palyer-name     text))
+     ((string= identifier "RE")     '(result                text))
+     ((string= identifier "RO")     '(game-round-info       text))
+     ((string= identifier "RU")     '(game-rules            text))
+     ((string= identifier "SO")     '(game-source           text))
+     ((string= identifier "TM")     '(time-limit            number))
+     ((string= identifier "US")     '(game-scribe-user      text))
+     ((string= identifier "WR")     '(white-rank            text))
+     ((string= identifier "WT")     '(white-team            text))
+
+     ;; timing
+     ((string= identifier "BL")     '(black-time-left       number))
+     ((string= identifier "WL")     '(white-time-left       number))
+     ((string= identifier "OB")     '(black-moves-left      number))
+     ((string= identifier "OW")     '(white-moves-left      number))
+
+     ;; go specific
+     ((string= identifier "HA")     '(game-handicap         number))
+     ((string= identifier "KM")     '(game-komi             number))
+     ((string= identifier "TB")     '(black-territory       move-list))
+     ((string= identifier "TW")     '(white-territory       move-list))
+
+     (t (signal igo-error-unknown-property (list sgf-property))))))
+
+;; (defun igo-sgf-apply-node (sgf-data)
+;;     )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game State
@@ -400,18 +524,18 @@
 (defun igo-gameflow-set-flow (gameflow flow)
   (aset gameflow 1 flow))
 
-(defun igo-gameflow-apply (gameflow gamestate)
-  (let ((new-gamestate (igo-new-gamestate (igo-state-size gamestate)))
-        (path (igo-gameflow-get-path gameflow))
-        (flow (igo-gameflow-get-flow gameflow)))
-    (cl-loop for path-element in path
-             do (let ((branch   (car path-element))
-                      (count    (cdr path-element)))
-                  ;; find right branch in flow
-                  ;; apply count moves from that branch
-                  (cl-loop n from 1 to count
-                           do (progn
-                                ))))))
+;; (defun igo-gameflow-apply (gameflow gamestate)
+;;   (let ((new-gamestate (igo-new-gamestate (igo-state-size gamestate)))
+;;         (path (igo-gameflow-get-path gameflow))
+;;         (flow (igo-gameflow-get-flow gameflow)))
+;;     (cl-loop for path-element in path
+;;              do (let ((branch   (car path-element))
+;;                       (count    (cdr path-element)))
+;;                   ;; find right branch in flow
+;;                   ;; apply count moves from that branch
+;;                   (cl-loop n from 1 to count
+;;                            do (progn
+;;                                 ))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game Internals
