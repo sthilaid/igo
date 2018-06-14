@@ -14,7 +14,6 @@
 (setq igo-current-gameflow nil)
 (setq igo-play-last-move (cons nil nil))
 (setq igo-play-current-move (cons nil nil))
-(setq igo-play-current-player 'b)
 (setq igo-active-overlays nil)
 ;; (setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
 ;;                          (if (file-exists-p ex-game-file)
@@ -156,7 +155,7 @@
 			  (parse-color (str) (if (and (>= (length str) 2)
 										  (let ((char (elt str 0))) (or (= char ?B) (= char ?W)))
 										  (= (elt str 1) ?\]))
-									 (cons (list 'color (elt str 0)) (substring str 1))
+									 (cons (list 'color (string (elt str 0))) (substring str 1))
 								   nil))
 			  (parse-point (str) nil)      ; todo
 			  (parse-move (str) nil)       ; todo
@@ -369,21 +368,60 @@
           (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'double))
         double-value))))
 
-(defun igo-sgf-apply-property (sgf-property)
+;;(igo-sgf-property-get-double-value '("WG" (value-list (double "2"))))
+
+(defun igo-sgf-property-get-color-value (sgf-data)
+  (let ((values (igo-sgf-property-get-values sgf-data)))
+    (if (or (not (= (length values) 1))
+            (not (eq (caar values) 'color))
+            (not (stringp (cadar values)))
+            (not (= (length (cadar values)) 1)))
+        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'color)))
+    (let ((color-char (elt (cadar values) 0)))
+      (if (not (or (eq color-char ?W)
+                   (eq color-char ?B)))
+          (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'color))
+        (make-symbol (downcase (cadar values)))))))
+
+;;(igo-sgf-property-get-color-value '("PL" (value-list (color "W"))))
+
+(defun igo-sgf-apply-property (sgf-property gamestate)
   (let ((identifier (igo-sgf-property-get-ident sgf-property))
         (values     (igo-sgf-property-get-values sgf-data)))
     (cond
      ;; move
-     ((string= identifier "B")      '(black-move            move))
-     ((string= identifier "W")      '(white-move            move))
+     ((string= identifier "B")      (let ((move     (igo-sgf-property-get-move sgf-property))
+                                          (coord    (igo-convert-char-coord-to-num-coord move)))
+                                      (igo-play-move 'b coord gamestate)))
+     
+     ((string= identifier "W")      (let ((move     (igo-sgf-property-get-move sgf-property))
+                                          (coord    (igo-convert-char-coord-to-num-coord move)))
+                                      (igo-play-move 'w coord gamestate)))
+     
      ((string= identifier "KO")     '(optional-force-move   move))
      ;;((string= identifier "MN")     '(set-move-number       number))
 
      ;; setup
-     ((string= identifier "AB")     '(add-black-stone       move-list))
-     ((string= identifier "AW")     '(add-white-stone       move-list))
-     ((string= identifier "AE")     '(add-empty-stone       move-list))
-     ((string= identifier "PL")     '(change-turn-to-play   color))
+     ((string= identifier "AB")     (let ((moves     (igo-sgf-property-get-move-list-value sgf-property))
+                                          (coord    (igo-convert-char-coord-to-num-coord move)))
+                                      (cl-loop for move in moves
+                                               do (let ((coord (igo-convert-char-coord-to-num-coord move)))
+                                                    (igo-add-stone 'b coord gamestate)))))
+     
+     ((string= identifier "AW")     (let ((moves     (igo-sgf-property-get-move-list-value sgf-property))
+                                          (coord    (igo-convert-char-coord-to-num-coord move)))
+                                      (cl-loop for move in moves
+                                               do (let ((coord (igo-convert-char-coord-to-num-coord move)))
+                                                    (igo-add-stone 'w coord gamestate)))))
+     
+     ((string= identifier "AE")     (let ((moves     (igo-sgf-property-get-move-list-value sgf-property))
+                                          (coord    (igo-convert-char-coord-to-num-coord move)))
+                                      (cl-loop for move in moves
+                                               do (let ((coord (igo-convert-char-coord-to-num-coord move)))
+                                                    (igo-add-stone nil coord gamestate)))))
+     
+     ((string= identifier "PL")     (let ((color (igo-sgf-property-get-color-value sgf-property)))
+                                      (igo-state-set-current-player color gamestate)))
 
      ;; node annotations (double 1: good 2: very good)
      ((string= identifier "N")      '(node-name             text)) ; short comment
@@ -395,7 +433,7 @@
      ((string= identifier "HO")     '(node-is-hotspot       double))
      ((string= identifier "V")      '(node-value            real)) ; positive good for white, neg good for black
 
-     ;; nove annotations
+     ;; move annotations
      ((string= identifier "BM")     '(bad-move              double))
      ((string= identifier "DO")     '(doubtful-move         nil))
      ((string= identifier "IT")     '(interesting-move      nil))
@@ -460,6 +498,41 @@
 ;;     )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Go Game Info
+
+(defun igo-create-game-info ()
+    (vector
+     (vector 'sgf-app-and-version: nil)
+     (vector 'variation-style: nil)
+     (vector 'board-size: nil)
+     (vector 'annotator-name: nil)
+     (vector 'black-rank: nil)
+     (vector 'black-team: nil)
+     (vector 'copyright: nil)
+     (vector 'date: nil)
+     (vector 'event: nil)
+     (vector 'game-name: nil)
+     (vector 'game-comment: nil)
+     (vector 'opening-info: nil)
+     (vector 'overtime-type: nil)
+     (vector 'black-player-name: nil)
+     (vector 'game-place: nil)
+     (vector 'white-palyer-name: nil)
+     (vector 'result: nil)
+     (vector 'game-round-info: nil)
+     (vector 'game-rules: nil)
+     (vector 'game-source: nil)
+     (vector 'time-limit: nil)
+     (vector 'game-scribe-user: nil)
+     (vector 'white-rank: nil)
+     (vector 'white-team: nil)
+     (vector 'game-handicap: nil)
+     (vector 'game-komi: nil)
+     (vector 'black-territory       nil)
+     (vector 'white-territory       nil)
+     ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game State
 
 (defun igo-new-gamestate (size)
@@ -468,7 +541,14 @@
 		 (state (make-vector h nil)))
 	(cl-loop for j from 0 to (- h 1)
 			 do (aset state j (make-vector w nil)))
-	(vector state (vector 'black-capture: 0) (vector 'white-capture: 0) (vector 'ko: nil))))
+	(vector state
+            (vector 'black-capture: 0)
+            (vector 'white-capture: 0)
+            (vector 'ko: nil)
+            (vector 'current-player: 'b)
+            (vector 'last-move-annotations: nil)
+            (vector 'game-info: nil)
+            )))
 
 (defun igo-state-size (gamestate)
   (let ((w (length (elt (elt gamestate 0) 0)))
@@ -505,6 +585,13 @@
 
 (defun igo-state-set-ko (ko-coord gamestate)
   (aset (elt gamestate 3) 1 ko-coord))
+
+(defun igo-state-get-current-player (gamestate)
+  (elt (elt gamestate 4) 1))
+
+(defun igo-state-set-current-player (player gamestate)
+  (aset (elt gamestate 4) 1 player))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game Flow
@@ -574,6 +661,9 @@
 
 (defun igo-other-player (player)
   (if (eq player 'b) 'w 'b))
+
+(defun igo-add-stone (player coord gamestate)
+  (igo-state-set coord gamestate player))
 
 (defun igo-play-move (player coord gamestate)
   (if (and (not (eq player 'b))
@@ -746,7 +836,7 @@
                      (save-excursion
                        (goto-char move-position)
                        (delete-char 1)
-                       (insert (igo-player-stone igo-play-current-player)))))
+                       (insert (igo-player-stone (igo-state-get-current-player igo-current-gamestate))))))
 
                ;; delete existing overlays
                (while igo-active-overlays
@@ -784,7 +874,8 @@
     ;; display message 
     (let ((col-char (if (car igo-play-current-move) (car igo-play-current-move) ??))
           (row-char (if (cdr igo-play-current-move) (cdr igo-play-current-move) ??))
-          (player-str (cond ((eq igo-play-current-player 'b) "black") ((eq igo-play-current-player 'w) "white") (t "unknown"))))
+          (current-player (igo-state-get-current-player igo-current-gamestate))
+          (player-str (cond ((eq current-player 'b) "black") ((eq current-player 'w) "white") (t "unknown"))))
       (message (concat "Next move for " player-str ":" (string col-char row-char) " press [enter] to submit or ctl-g to abort")))))
 
 (defun igo-play-set-col (char)
@@ -802,13 +893,14 @@
   (if (or (not (car igo-play-current-move)) (not (cdr igo-play-current-move)))
       (signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
   (let* ((coord (igo-convert-char-coord-to-num-coord igo-play-current-move))
-         (value (igo-state-get coord igo-current-gamestate)))
+         (value (igo-state-get coord igo-current-gamestate))
+         (current-player (igo-state-get-current-player igo-current-gamestate)))
     (if (eq value 'oob)
         (signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
-    (igo-play-move igo-play-current-player coord igo-current-gamestate)
+    (igo-play-move current-player coord igo-current-gamestate)
     (setq igo-play-last-move igo-play-current-move)
     (setq igo-play-current-move (cons nil nil))
-    (setq igo-play-current-player (igo-other-player igo-play-current-player))
+    (igo-state-set-current-player (igo-other-player igo-play-current-player) igo-current-gamestate)
     (igo-redraw)
     (igo-display-current-move)))
 
