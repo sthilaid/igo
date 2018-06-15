@@ -387,7 +387,8 @@
 
 (defun igo-sgf-apply-property (sgf-property gamestate)
   (let ((identifier (igo-sgf-property-get-ident sgf-property))
-        (values     (igo-sgf-property-get-values sgf-data)))
+        (values     (igo-sgf-property-get-values sgf-data))
+        (info       (igo-state-get-game-info gamestate)))
     (cond
      ;; move
      ((string= identifier "B")      (let ((move     (igo-sgf-property-get-move sgf-property))
@@ -450,36 +451,62 @@
      ((string= identifier "TR")     '(triangle              move-list))
 
      ;; root
-     ((string= identifier "AP")     '(sgf-app-and-version   text))      ; "app:version"
-     ((string= identifier "CA")     '(charset               text))
-     ((string= identifier "FF")     '(file-format           number))    ; 1-4
-     ((string= identifier "GM")     '(game-type             number))    ; 1-16, 1: Go
-     ((string= identifier "ST")     '(variation-style       number))    ; 0-3
-     ((string= identifier "SZ")     '(board-size            size))      ; number or number:number
+     ((string= identifier "AP")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-sgf-app-and-version info value)))
+     ((string= identifier "CA")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-charset info value)))
+     ((string= identifier "FF")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-file-format info value)))
+     ((string= identifier "GM")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-game-type info value)))
+     ((string= identifier "ST")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-variation-style info value)))
+     ((string= identifier "SZ")     '(board-size            size)) ;; !get-size! number or number:number
 
      ;; game info
-     ((string= identifier "AN")     '(annotator-name        text))
-     ((string= identifier "BR")     '(black-rank            text))
-     ((string= identifier "BT")     '(black-team            text))
-     ((string= identifier "CP")     '(copyright             text))
-     ((string= identifier "DT")     '(date                  text))
-     ((string= identifier "EV")     '(event                 text))
-     ((string= identifier "GN")     '(game-name             text))
-     ((string= identifier "GC")     '(game-comment          text))
-     ((string= identifier "ON")     '(opening-info          text))
-     ((string= identifier "OT")     '(overtime-type         text))
-     ((string= identifier "PB")     '(black-player-name     text))
-     ((string= identifier "PC")     '(game-place            text))
-     ((string= identifier "PW")     '(white-palyer-name     text))
-     ((string= identifier "RE")     '(result                text))
-     ((string= identifier "RO")     '(game-round-info       text))
-     ((string= identifier "RU")     '(game-rules            text))
-     ((string= identifier "SO")     '(game-source           text))
-     ((string= identifier "TM")     '(time-limit            number))
-     ((string= identifier "US")     '(game-scribe-user      text))
-     ((string= identifier "WR")     '(white-rank            text))
-     ((string= identifier "WT")     '(white-team            text))
-
+     ((string= identifier "AN")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-annotator-name info value)))
+     ((string= identifier "BR")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-black-rank info value)))
+     ((string= identifier "BT")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-black-team info value)))
+     ((string= identifier "CP")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-copyright info value)))
+     ((string= identifier "DT")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-date info value)))
+     ((string= identifier "EV")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-event info value)))
+     ((string= identifier "GN")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-game-name info value)))
+     ((string= identifier "GC")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-game-comment info value)))
+     ((string= identifier "ON")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-opening-info info value)))
+     ((string= identifier "OT")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-overtime-type info value)))
+     ((string= identifier "PB")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-black-player-name info value)))
+     ((string= identifier "PC")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-game-place info value)))
+     ((string= identifier "PW")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-white-palyer-name info value)))
+     ((string= identifier "RE")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-result info value)))
+     ((string= identifier "RO")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-game-round-info info value)))
+     ((string= identifier "RU")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-game-rules info value)))
+     ((string= identifier "SO")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-game-source info value)))
+     ((string= identifier "TM")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-time-limit info value)))
+     ((string= identifier "US")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-game-scribe-user info value)))
+     ((string= identifier "WR")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-white-rank info value)))
+     ((string= identifier "WT")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-white-team info value)))
+     
      ;; timing
      ((string= identifier "BL")     '(black-time-left       number))
      ((string= identifier "WL")     '(white-time-left       number))
@@ -487,11 +514,15 @@
      ((string= identifier "OW")     '(white-moves-left      number))
 
      ;; go specific
-     ((string= identifier "HA")     '(game-handicap         number))
-     ((string= identifier "KM")     '(game-komi             number))
-     ((string= identifier "TB")     '(black-territory       move-list))
-     ((string= identifier "TW")     '(white-territory       move-list))
-
+     ((string= identifier "HA")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-game-handicap info value)))
+     ((string= identifier "KM")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-game-komi info value)))
+     ((string= identifier "TB")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-black-territory       move info value)))
+     ((string= identifier "TW")     (let ((value (igo-sgf-property-get-text sgf-property)))
+                                      (igo-info-set-white-territory       move info value)))
+     
      (t (signal igo-error-unknown-property (list sgf-property))))))
 
 ;; (defun igo-sgf-apply-node (sgf-data)
@@ -531,6 +562,145 @@
      (vector 'black-territory       nil)
      (vector 'white-territory       nil)
      ))
+
+(defun igo-info-get-sgf-app-and-version (info)
+  (elt info 0))
+(defun igo-info-set-sgf-app-and-version (info value)
+  (aset info 0 value))
+
+(defun igo-info-get-variation-style (info)
+  (elt info 1))
+(defun igo-info-set-variation-style (info value)
+  (aset info 1 value))
+
+(defun igo-info-get-board-size (info)
+  (elt info 2))
+(defun igo-info-set-board-size (info value)
+  (aset info 2 value))
+
+(defun igo-info-get-annotator-name (info)
+  (elt info 3))
+(defun igo-info-set-annotator-name (info value)
+  (aset info 3 value))
+
+(defun igo-info-get-black-rank (info)
+  (elt info 4))
+(defun igo-info-set-black-rank (info value)
+  (aset info 4 value))
+
+(defun igo-info-get-black-team (info)
+  (elt info 5))
+(defun igo-info-set-black-team (info value)
+  (aset info 5 value))
+
+(defun igo-info-get-copyright (info)
+  (elt info 6))
+(defun igo-info-set-copyright (info value)
+  (aset info 6 value))
+
+(defun igo-info-get-date (info)
+  (elt info 7))
+(defun igo-info-set-date (info value)
+  (aset info 7 value))
+
+(defun igo-info-get-event (info)
+  (elt info 8))
+(defun igo-info-set-event (info value)
+  (aset info 8 value))
+
+(defun igo-info-get-game-name (info)
+  (elt info 9))
+(defun igo-info-set-game-name (info value)
+  (aset info 9 value))
+(defun igo-info-get-game-comment (info)
+  (elt info 10))
+(defun igo-info-set-game-comment (info value)
+  (aset info 10 value))
+
+(defun igo-info-get-opening-info (info)
+  (elt info 11))
+(defun igo-info-set-opening-info (info value)
+  (aset info 11 value))
+
+(defun igo-info-get-overtime-type (info)
+  (elt info 12))
+(defun igo-info-set-overtime-type (info value)
+  (aset info 12 value))
+
+(defun igo-info-get-black-player-name (info)
+  (elt info 13))
+(defun igo-info-set-black-player-name (info value)
+  (aset info 13 value))
+
+(defun igo-info-get-game-place (info)
+  (elt info 14))
+(defun igo-info-set-game-place (info value)
+  (aset info 14 value))
+
+(defun igo-info-get-white-palyer-name (info)
+  (elt info 15))
+(defun igo-info-set-white-palyer-name (info value)
+  (aset info 15 value))
+
+(defun igo-info-get-result (info)
+  (elt info 16))
+(defun igo-info-set-result (info value)
+  (aset info 16 value))
+
+(defun igo-info-get-game-round-info (info)
+  (elt info 17))
+(defun igo-info-set-game-round-info (info value)
+  (aset info 17 value))
+
+(defun igo-info-get-game-rules (info)
+  (elt info 18))
+(defun igo-info-set-game-rules (info value)
+  (aset info 18 value))
+
+(defun igo-info-get-game-source (info)
+  (elt info 19))
+(defun igo-info-set-game-source (info value)
+  (aset info 19 value))
+
+(defun igo-info-get-time-limit (info)
+  (elt info 20))
+(defun igo-info-set-time-limit (info value)
+  (aset info 20 value))
+
+(defun igo-info-get-game-scribe-user (info)
+  (elt info 21))
+(defun igo-info-set-game-scribe-user (info value)
+  (aset info 21 value))
+
+(defun igo-info-get-white-rank (info)
+  (elt info 22))
+(defun igo-info-set-white-rank (info value)
+  (aset info 22 value))
+
+(defun igo-info-get-white-team (info)
+  (elt info 23))
+(defun igo-info-set-white-team (info value)
+  (aset info 23 value))
+
+(defun igo-info-get-game-handicap (info)
+  (elt info 24))
+(defun igo-info-set-game-handicap (info value)
+  (aset info 24 value))
+
+(defun igo-info-get-game-komi (info)
+  (elt info 25))
+(defun igo-info-set-game-komi (info value)
+  (aset info 25 value))
+
+(defun igo-info-get-black-territory      (info)
+  (elt info 26))
+(defun igo-info-set-black-territory      (info value)
+  (aset info 26 value))
+
+(defun igo-info-get-white-territory      (info)
+  (elt info 27))
+(defun igo-info-set-white-territory      (info value)
+  (aset info 27 value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game State
@@ -591,6 +761,18 @@
 
 (defun igo-state-set-current-player (player gamestate)
   (aset (elt gamestate 4) 1 player))
+
+(defun igo-state-get-last-move-annotation (gamestate)
+  (elt (elt gamestate 5) 1))
+
+(defun igo-state-set-last-move-annotation (annotation gamestate)
+  (aset (elt gamestate 5) 1 annotation))
+
+(defun igo-state-get-game-info (gamestate)
+  (elt (elt gamestate 6) 1))
+
+(defun igo-state-set-game-info (game-info gamestate)
+  (aset (elt gamestate 6) 1 annotation))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
