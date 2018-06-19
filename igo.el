@@ -6,6 +6,7 @@
 (define-error 'igo-error-unknown-property "Unknown property: ")
 (define-error 'igo-error-invalid-property-values "Invalid property values for type: ")
 (define-error 'igo-error-invalid-sgf-data "Invalid sgf data: ")
+(define-error 'igo-error-unsupported "Unsupported game: ")
 
 (setq igo-buffer-name "*igo*")
 (setq igo-show-labels 't)
@@ -117,7 +118,7 @@
 								  (cons acc str)))
 							(igo-error-sgf-parsing (cons acc str)))))
     (let ((result (parse-list '() sgf-str)))
-      (cons (cons (make-symbol (concat (symbol-name list-type) "-list")) (reverse (car result))) (cdr result)))))
+      (cons (cons (intern (concat (symbol-name list-type) "-list")) (reverse (car result))) (cdr result)))))
 
 (defun igo-parse-is-letter? (char)
   (let ((downcase-char (downcase char)))
@@ -381,13 +382,21 @@
       (if (not (or (eq color-char ?W)
                    (eq color-char ?B)))
           (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'color))
-        (make-symbol (downcase (cadar values)))))))
+        (intern (downcase (cadar values)))))))
 
 ;;(igo-sgf-property-get-color-value '("PL" (value-list (color "W"))))
 
+(defun igo-sgf-property-get-text (sgf-property)
+  (let ((values (igo-sgf-property-get-values sgf-property)))
+    (if (or (not (= (length values) 1))
+            (not (eq (caar values) 'text))
+            (not (stringp (cadar values))))
+        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'text)))
+    (cadar values)))
+
 (defun igo-sgf-apply-property (sgf-property gamestate)
   (let ((identifier (igo-sgf-property-get-ident sgf-property))
-        (values     (igo-sgf-property-get-values sgf-data))
+        (values     (igo-sgf-property-get-values sgf-property))
         (info       (igo-state-get-game-info gamestate)))
     (cond
      ;; move
@@ -453,12 +462,12 @@
      ;; root
      ((string= identifier "AP")     (let ((value (igo-sgf-property-get-text sgf-property)))
                                       (igo-info-set-sgf-app-and-version info value)))
-     ((string= identifier "CA")     (let ((value (igo-sgf-property-get-text sgf-property)))
-                                      (igo-info-set-charset info value)))
-     ((string= identifier "FF")     (let ((value (igo-sgf-property-get-text sgf-property)))
-                                      (igo-info-set-file-format info value)))
+     ((string= identifier "CA")     'charset-text)
+     ((string= identifier "FF")     'number)
      ((string= identifier "GM")     (let ((value (igo-sgf-property-get-text sgf-property)))
-                                      (igo-info-set-game-type info value)))
+                                      (if (not (= value 1))
+                                          (signal igo-error-unsupported (list 'unsupported 'game value))
+                                        'game-number)))
      ((string= identifier "ST")     (let ((value (igo-sgf-property-get-text sgf-property)))
                                       (igo-info-set-variation-style info value)))
      ((string= identifier "SZ")     '(board-size            size)) ;; !get-size! number or number:number
@@ -525,8 +534,12 @@
      
      (t (signal igo-error-unknown-property (list sgf-property))))))
 
-;; (defun igo-sgf-apply-node (sgf-data)
-;;     )
+(defun igo-sgf-apply-node (sgf-data gamestate)
+  (if (or (not (listp sgf-data))
+          (not (eq (car sgf-data) 'property-list)))
+      (signal 'igo-error-invalid-property-values `(invalid node: ,sgf-data)))
+  (cl-loop for prop in (cdr sgf-data)
+           do (igo-sgf-apply-property prop gamestate)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game Info
@@ -793,18 +806,42 @@
 (defun igo-gameflow-set-flow (gameflow flow)
   (aset gameflow 1 flow))
 
-;; (defun igo-gameflow-apply (gameflow gamestate)
-;;   (let ((new-gamestate (igo-new-gamestate (igo-state-size gamestate)))
-;;         (path (igo-gameflow-get-path gameflow))
-;;         (flow (igo-gameflow-get-flow gameflow)))
-;;     (cl-loop for path-element in path
-;;              do (let ((branch   (car path-element))
-;;                       (count    (cdr path-element)))
-;;                   ;; find right branch in flow
-;;                   ;; apply count moves from that branch
-;;                   (cl-loop n from 1 to count
-;;                            do (progn
-;;                                 ))))))
+(defun igo-sgf-gametree-get-branch (sgf-gametree branch-num)
+  (if (or (not (listp sgf-gametree))
+          (not (>= (length sgf-gametree) 3))
+          (not (listp (elt sgf-gametree 1)))
+          (not (eq (car (elt sgf-gametree 1)) 'sequence-list))
+          (not (listp (elt sgf-gametree 2)))
+          (not (eq (car (elt sgf-gametree 2)) 'gametree-list)))
+      (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'gametree)))
+  (if (<= branch-num 0)
+      (elt sgf-gametree 1)
+    (let ((gametrees (elt sgf-gametree 2)))
+      (if (< (length gametrees)
+             branch-num)
+          (signal 'igo-error-invalid-property-values `(not enough sequences for branch-num: ,branch-num in gametree: ,sgf-gametree))
+        (elt gametrees branch-num)))))
+
+(defun igo-gameflow-apply (gameflow gamestate)
+  (let ((new-gamestate (igo-new-gamestate (igo-state-size gamestate)))
+        (path (igo-gameflow-get-path gameflow))
+        (flow (igo-gameflow-get-flow gameflow)))
+    (cl-loop for path-element in path
+             do (let* ((branch-num   (car path-element))
+                       (count        (cdr path-element))
+                       (branch       (igo-sgf-gametree-get-branch flow branch-num)))
+                  (if (< (- (length flow) 1) count)
+                      (signal 'igo-error-invalid-flow `(not enough sequences for branch-num: ,branch-num in gametree: ,flow)))
+                  (cl-loop for i from 1 to count
+                           do (let ((node (elt flow i)))
+                                (cl-loop for node-el in (cdr node) ; skipping 'property-list
+                                         do (igo-sgf-apply-node node-el new-gamestate))))
+                  (setq flow branch)))))
+
+;; (let ((flow (igo-new-gameflow)))
+;;   (igo-gameflow-set-path flow (list (cons 0 1)))
+;;   (igo-gameflow-set-flow flow (car (igo-parse-sgf-gametree igo-examble-game)))
+;;   (igo-gameflow-apply flow igo-current-gamestate))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game Internals
