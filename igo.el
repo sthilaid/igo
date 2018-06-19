@@ -8,6 +8,11 @@
 (define-error 'igo-error-invalid-sgf-data "Invalid sgf data: ")
 (define-error 'igo-error-unsupported "Unsupported game: ")
 
+(setq igo-debug-on-error t)
+(defmacro igo-signal (err val)
+  `(progn (if ,igo-debug-on-error (debug))
+          (signal ,err ,val)))
+
 (setq igo-buffer-name "*igo*")
 (setq igo-show-labels 't)
 (setq igo-current-mode nil)
@@ -96,7 +101,7 @@
 
                  if (and (not (igo-parse-ignore-char c))
                          (not (= c (elt token token-idx))))
-                 do (signal 'igo-error-sgf-parsing (list (concat "wrong token, expecting: " token " got: " str)))
+                 do (igo-signal 'igo-error-sgf-parsing (list (concat "wrong token, expecting: " token " got: " str)))
 
                  if (and (not (igo-parse-ignore-char c))
                          (= c (elt token token-idx)))
@@ -104,7 +109,7 @@
 
                  if (>= token-idx (length token))
                  return (substring str (+ i 1))))
-    (signal 'igo-error-sgf-parsing (list (concat "wrong token, expecting: " token " got: " str)))))
+    (igo-signal 'igo-error-sgf-parsing (list (concat "wrong token, expecting: " token " got: " str)))))
 
 ;;(igo-parse-next-token "   \n\r(allo)" "(")
 ;; (igo-parse-next-token "aaa)" "aab")
@@ -129,7 +134,7 @@
 ;; (igo-parse-is-letter? ?a)
 
 (defun igo-parse-sgf-property-id (sgf-str)
-  (cl-labels ((call-error () (signal 'igo-error-sgf-parsing (list (concat "invalid property for " sgf-str))))
+  (cl-labels ((call-error () (igo-signal 'igo-error-sgf-parsing (list (concat "invalid property for " sgf-str))))
 			  (parse-proptery (acc str)
 							  (if (string= str "")
 								  (cons acc str)
@@ -199,7 +204,7 @@
 ;; (igo-parse-sgf-value-type "bla blua\r]")
 
 (defun igo-parse-sgf-property-value (sgf-str)
-  (if (or (not sgf-str) (string= sgf-str "")) (signal 'igo-error-sgf-parsing (list (concat "invalid value string: " sgf-str))))
+  (if (or (not sgf-str) (string= sgf-str "")) (igo-signal 'igo-error-sgf-parsing (list (concat "invalid value string: " sgf-str))))
   (let* ((str (igo-parse-next-token sgf-str "["))
                (value-type (igo-parse-sgf-value-type str))
                (result (igo-parse-next-token (cdr value-type) "]")))
@@ -210,7 +215,7 @@
 ;; (igo-parse-sgf-property-value "[text test]")
 
 (defun igo-parse-sgf-property (sgf-str)
-  (if (or (not sgf-str) (string= sgf-str "")) (signal 'igo-error-sgf-parsing (list (concat "invalid property string: " sgf-str))))
+  (if (or (not sgf-str) (string= sgf-str "")) (igo-signal 'igo-error-sgf-parsing (list (concat "invalid property string: " sgf-str))))
   (let* ((property-id (igo-parse-sgf-property-id sgf-str))
          (property-values (igo-parse-sgf-list (cdr property-id) 'igo-parse-sgf-property-value 'value)))
     (cons (list (car property-id) (car property-values)) (cdr property-values))))
@@ -222,7 +227,7 @@
     (if node-str-rest
 		;(igo-parse-sgf-property node-str-rest)
 		(igo-parse-sgf-list node-str-rest 'igo-parse-sgf-property 'property)
-      (signal 'igo-error-sgf-parsing (list (concat "while paring node: " sgf-str))))))
+      (igo-signal 'igo-error-sgf-parsing (list (concat "while paring node: " sgf-str))))))
 
 ;; (igo-parse-sgf-node ";C[Comment]")
 ;; (igo-parse-sgf-node ";AB[B]")
@@ -259,13 +264,13 @@
 (defun igo-parse-sgf-gametree (str)
   (let ((seq-str (igo-parse-next-token str "(")))
     (if (not seq-str)
-        (signal 'igo-error-sgf-parsing (list (concat "invalid gametree token ( for: " str)))
+        (igo-signal 'igo-error-sgf-parsing (list (concat "invalid gametree token ( for: " str)))
       (let ((sequence (igo-parse-sgf-sequence seq-str)))
         (progn
           (let ((subtrees (igo-parse-sgf-list (cdr sequence) 'igo-parse-sgf-gametree 'gametree)))
             (let ((rest (igo-parse-next-token (cdr subtrees) ")")))
               (if (not rest)
-                  (signal 'igo-error-sgf-parsing (list (concat "invalid gametree token ) for: " (cdr subtrees))))
+                  (igo-signal 'igo-error-sgf-parsing (list (concat "invalid gametree token ) for: " (cdr subtrees))))
                 (cons (list 'gametree (car sequence) (car subtrees))
                       rest)))))))))
 
@@ -287,30 +292,30 @@
 
 (defun igo-sgf-collection-get-gametrees (sgf-data)
   (if (not (eq (car sgf-data) 'collection-list))
-      (signal 'igo-error-invalid-sgf-data (list "expecting 'collection-list got: " (car sgf-data))))
+      (igo-signal 'igo-error-invalid-sgf-data (list "expecting 'collection-list got: " (car sgf-data))))
   (cdr sgf-data))
 
 (defun igo-sgf-gametree-get-sequence (sgf-data)
   (let ((tag 'gametree))
     (if (not (eq (car sgf-data) tag))
-        (signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
+        (igo-signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
   (elt sgf-data 1))
 
 (defun igo-sgf-sequence-get-nodes (sgf-data)
   (let ((tag 'sequence-list))
     (if (not (eq (car sgf-data) tag))
-        (signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
+        (igo-signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
   (cdr sgf-data))
 
 (defun igo-sgf-node-get-properties (sgf-data)
   (let ((tag 'property-list))
     (if (not (eq (car sgf-data) tag))
-        (signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
+        (igo-signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
   (cdr sgf-data))
 
 (defun igo-sgf-property-get-ident (sgf-data)
   (if (not (stringp (car sgf-data)))
-      (signal 'igo-error-invalid-sgf-data (list "expecting string type for property ident, got: " (car sgf-data))))
+      (igo-signal 'igo-error-invalid-sgf-data (list "expecting string type for property ident, got: " (car sgf-data))))
   (car sgf-data))
 
 (defun igo-sgf-property-get-values (sgf-data)
@@ -320,7 +325,7 @@
             (not (listp (cadr sgf-data)))
             (not (eq (caadr sgf-data) tag))
             (not (listp (cdadr sgf-data))))
-        (signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(caadr sgf-data)))))
+        (igo-signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(caadr sgf-data)))))
   (cdadr sgf-data))
 
 ;;(igo-sgf-property-get-values '("W" (value-list (text "eh"))))
@@ -330,7 +335,7 @@
     (if (or (not (= (length values) 1))
             (not (eq (caar values) 'text))
             (not (stringp (cadar values))))
-        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'move)))
+        (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'move)))
     (cadar values)))
 
 ;;(igo-sgf-property-get-move-value '("W" (value-list (text "eh"))))
@@ -338,7 +343,7 @@
 (defun igo-sgf-property-get-move-list-value (sgf-data)
   (let ((values (igo-sgf-property-get-values sgf-data)))
     (if (= (length values) 0)
-        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'move-list)))
+        (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'move-list)))
     (mapcar (lambda (value) (igo-sgf-property-get-move-value (list (car sgf-data) (list 'value-list value))))
             values)))
 
@@ -352,7 +357,7 @@
     (if (or (not (= (length values) 1))
             (not (eq (caar values) 'number))
             (not (stringp (cadar values))))
-        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'number)))
+        (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'number)))
     (string-to-number (cadar values))))
 
 ;;(igo-sgf-property-get-number-value '("HA" (value-list (number "4"))))
@@ -362,11 +367,11 @@
     (if (or (not (= (length values) 1))
             (not (eq (caar values) 'double))
             (not (stringp (cadar values))))
-        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'double)))
+        (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'double)))
     (let ((double-value (string-to-number (cadar values))))
       (if (not (or (= double-value 1)
                    (= double-value 2)))
-          (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'double))
+          (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'double))
         double-value))))
 
 ;;(igo-sgf-property-get-double-value '("WG" (value-list (double "2"))))
@@ -377,11 +382,11 @@
             (not (eq (caar values) 'color))
             (not (stringp (cadar values)))
             (not (= (length (cadar values)) 1)))
-        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'color)))
+        (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'color)))
     (let ((color-char (elt (cadar values) 0)))
       (if (not (or (eq color-char ?W)
                    (eq color-char ?B)))
-          (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'color))
+          (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'color))
         (intern (downcase (cadar values)))))))
 
 ;;(igo-sgf-property-get-color-value '("PL" (value-list (color "W"))))
@@ -391,7 +396,7 @@
     (if (or (not (= (length values) 1))
             (not (eq (caar values) 'text))
             (not (stringp (cadar values))))
-        (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'text)))
+        (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'text)))
     (cadar values)))
 
 (defun igo-sgf-apply-property (sgf-property gamestate)
@@ -466,7 +471,7 @@
      ((string= identifier "FF")     'number)
      ((string= identifier "GM")     (let ((value (igo-sgf-property-get-text sgf-property)))
                                       (if (not (= value 1))
-                                          (signal igo-error-unsupported (list 'unsupported 'game value))
+                                          (igo-signal igo-error-unsupported (list 'unsupported 'game value))
                                         'game-number)))
      ((string= identifier "ST")     (let ((value (igo-sgf-property-get-text sgf-property)))
                                       (igo-info-set-variation-style info value)))
@@ -532,12 +537,12 @@
      ((string= identifier "TW")     (let ((value (igo-sgf-property-get-text sgf-property)))
                                       (igo-info-set-white-territory       move info value)))
      
-     (t (signal igo-error-unknown-property (list sgf-property))))))
+     (t (igo-signal igo-error-unknown-property (list sgf-property))))))
 
 (defun igo-sgf-apply-node (sgf-data gamestate)
   (if (or (not (listp sgf-data))
           (not (eq (car sgf-data) 'property-list)))
-      (signal 'igo-error-invalid-property-values `(invalid node: ,sgf-data)))
+      (igo-signal 'igo-error-invalid-property-values `(invalid node: ,sgf-data)))
   (cl-loop for prop in (cdr sgf-data)
            do (igo-sgf-apply-property prop gamestate)))
 
@@ -813,13 +818,13 @@
           (not (eq (car (elt sgf-gametree 1)) 'sequence-list))
           (not (listp (elt sgf-gametree 2)))
           (not (eq (car (elt sgf-gametree 2)) 'gametree-list)))
-      (signal 'igo-error-invalid-property-values (list 'values: values 'type: 'gametree)))
+      (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'gametree)))
   (if (<= branch-num 0)
       (elt sgf-gametree 1)
     (let ((gametrees (elt sgf-gametree 2)))
       (if (< (length gametrees)
              branch-num)
-          (signal 'igo-error-invalid-property-values `(not enough sequences for branch-num: ,branch-num in gametree: ,sgf-gametree))
+          (igo-signal 'igo-error-invalid-property-values `(not enough sequences for branch-num: ,branch-num in gametree: ,sgf-gametree))
         (elt gametrees branch-num)))))
 
 (defun igo-gameflow-apply (gameflow gamestate)
@@ -831,7 +836,7 @@
                        (count        (cdr path-element))
                        (branch       (igo-sgf-gametree-get-branch flow branch-num)))
                   (if (< (- (length flow) 1) count)
-                      (signal 'igo-error-invalid-flow `(not enough sequences for branch-num: ,branch-num in gametree: ,flow)))
+                      (igo-signal 'igo-error-invalid-flow `(not enough sequences for branch-num: ,branch-num in gametree: ,flow)))
                   (cl-loop for i from 1 to count
                            do (let ((node (elt flow i)))
                                 (cl-loop for node-el in (cdr node) ; skipping 'property-list
@@ -842,6 +847,7 @@
 ;;   (igo-gameflow-set-path flow (list (cons 0 1)))
 ;;   (igo-gameflow-set-flow flow (car (igo-parse-sgf-gametree igo-examble-game)))
 ;;   (igo-gameflow-apply flow igo-current-gamestate))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game Internals
@@ -887,12 +893,12 @@
 (defun igo-play-move (player coord gamestate)
   (if (and (not (eq player 'b))
 		   (not (eq player 'w)))
-	  (signal 'igo-error-invalid-player (list player)))
+	  (igo-signal 'igo-error-invalid-player (list player)))
   (let* ((current-value (igo-state-get coord gamestate)))
-	(if current-value (signal 'igo-error-invalid-move (list (concat "already " (symbol-name current-value)
+	(if current-value (igo-signal 'igo-error-invalid-move (list (concat "already " (symbol-name current-value)
 																	" stone at (" (number-to-string (car coord)) " . " (number-to-string (cdr coord)) ")"))))
 	(if (equal coord (igo-state-get-ko gamestate))
-		(signal 'igo-error-invalid-move (list (concat "Ko rule: cannot play where a single stone was just capture..."))))
+		(igo-signal 'igo-error-invalid-move (list (concat "Ko rule: cannot play where a single stone was just capture..."))))
 
 	(igo-state-set-ko nil gamestate) ; reset ko
 	(igo-state-set coord gamestate player)
@@ -900,7 +906,7 @@
 	(let ((group-liberties (igo-get-liberties (igo-get-group coord gamestate) gamestate)))
 	  (if (= group-liberties 0)
 		  (progn (igo-state-set coord gamestate nil)
-				 (signal 'igo-error-invalid-move (list (concat "Suicide move are not allowed..."))))))
+				 (igo-signal 'igo-error-invalid-move (list (concat "Suicide move are not allowed..."))))))
 
 	(let ((other-player (igo-other-player player))
 		  (neighbours (igo-get-neighbours coord)))
@@ -1014,7 +1020,7 @@
 			(>= row (car size))
 			(< row 0)
 			(>= row (cdr size)))
-		(signal 'igo-error-invalid-coord (list (cons col row))))
+		(igo-signal 'igo-error-invalid-coord (list (cons col row))))
 	(cons col row)))
 
 (defun igo-get-buffer-position (col row)
@@ -1110,12 +1116,12 @@
 (defun igo-play-commit-move ()
   (interactive)
   (if (or (not (car igo-play-current-move)) (not (cdr igo-play-current-move)))
-      (signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
+      (igo-signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
   (let* ((coord (igo-convert-char-coord-to-num-coord igo-play-current-move))
          (value (igo-state-get coord igo-current-gamestate))
          (current-player (igo-state-get-current-player igo-current-gamestate)))
     (if (eq value 'oob)
-        (signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
+        (igo-signal 'igo-error-invalid-move-input (list (with-output-to-string (pp igo-play-current-move)))))
     (igo-play-move current-player coord igo-current-gamestate)
     (setq igo-play-last-move igo-play-current-move)
     (setq igo-play-current-move (cons nil nil))
