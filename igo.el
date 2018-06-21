@@ -7,10 +7,14 @@
 (define-error 'igo-error-invalid-property-values "Invalid property values for type: ")
 (define-error 'igo-error-invalid-sgf-data "Invalid sgf data: ")
 (define-error 'igo-error-unsupported "Unsupported game: ")
+(define-error 'igo-error-invalid-str-coord "Invalid string coordinate: ")
 
-(setq igo-debug-on-error t)
+(setq igo-debug-on-error 'debug-only-non-parsing) ;; nil, 'non-parsing, anything else: all
 (defmacro igo-signal (err val)
-  `(progn (if ,igo-debug-on-error (debug))
+  `(progn ,(if (and igo-debug-on-error
+                    (or (not (eq igo-debug-on-error 'debug-only-non-parsing))
+                        (eq err 'igo-error-sgf-parsing)))
+               '(debug))
           (signal ,err ,val)))
 
 (setq igo-buffer-name "*igo*")
@@ -21,21 +25,20 @@
 (setq igo-play-last-move (cons nil nil))
 (setq igo-play-current-move (cons nil nil))
 (setq igo-active-overlays nil)
-;; (setq igo-examble-game (let ((ex-game-file "ff4_ex.sgf"))
-;;                          (if (file-exists-p ex-game-file)
-;;                              (with-temp-buffer
-;;                                (insert-file-contents ex-game-file)
-;;                                (buffer-string))
-;;                            "")))
 
-;; (setq igo-examble-game (let ((ex-game-file "c:/Users/dsthillaire/Downloads/9989-Lebertran-hkkmomo-zaphod.sgf"))
-;;                          (if (file-exists-p ex-game-file)
-;;                              (with-temp-buffer
-;;                                (insert-file-contents ex-game-file)
-;;                                (buffer-string))
-;;                            "")))
-;; (with-output-to-temp-buffer (generate-new-buffer-name "igo-examble-game")
-;;     (pp (igo-sgf-parse-str igo-examble-game)))
+(defun igo-setup-example-game ()
+  (setq igo-example-game (let ((ex-game-file "example2.sgf"))
+                           (if (file-exists-p ex-game-file)
+                               (with-temp-buffer
+                                 (insert-file-contents ex-game-file)
+                                 (buffer-string))
+                             "")))
+  (with-output-to-temp-buffer (generate-new-buffer-name "igo-example-game")
+    (pp (igo-sgf-parse-str igo-example-game))))
+
+;; (save-excursion
+;;   (switch-to-buffer (generate-new-buffer-name "igo-example-game"))
+;;   (insert igo-example-game))
 
 
 (defun igo-is-igo-buffer? ()
@@ -274,7 +277,7 @@
                 (cons (list 'gametree (car sequence) (car subtrees))
                       rest)))))))))
 
-;;(igo-parse-sgf-gametree igo-examble-game)
+;;(igo-parse-sgf-gametree igo-example-game)
 ;;(igo-parse-sgf-gametree "(;B[ab]C[comment];B[cd]C[comment](;Z[12]C[comment];Z[45]C[comment])(;X[12.0]C[comment];Y[12]))")
 ;;(pp (igo-parse-sgf-gametree "(;B[ab]C[comment];B[cd]C[comment])"))
 ;;(pp (igo-parse-sgf-gametree "(;B[ab]C[comment];B[cd]C[comment](;XY[12]C[comment];YZ[15])(;H[1]B[B];H[2]B[W]))"))
@@ -323,10 +326,10 @@
     (if (or (not (consp sgf-data))
             (not (consp (cdr sgf-data)))
             (not (listp (cadr sgf-data)))
-            (not (eq (caadr sgf-data) tag))
-            (not (listp (cdadr sgf-data))))
-        (igo-signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(caadr sgf-data)))))
-  (cdadr sgf-data))
+            (not (eq (cl-caadr sgf-data) tag))
+            (not (listp (cl-cdadr sgf-data))))
+        (igo-signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(cl-caadr sgf-data)))))
+  (cl-cdadr sgf-data))
 
 ;;(igo-sgf-property-get-values '("W" (value-list (text "eh"))))
 
@@ -334,9 +337,9 @@
   (let ((values (igo-sgf-property-get-values sgf-data)))
     (if (or (not (= (length values) 1))
             (not (eq (caar values) 'text))
-            (not (stringp (cadar values))))
+            (not (stringp (cl-cadar values))))
         (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'move)))
-    (cadar values)))
+    (cl-cadar values)))
 
 ;;(igo-sgf-property-get-move-value '("W" (value-list (text "eh"))))
 
@@ -355,10 +358,11 @@
 (defun igo-sgf-property-get-number-value (sgf-data)
   (let ((values (igo-sgf-property-get-values sgf-data)))
     (if (or (not (= (length values) 1))
-            (not (eq (caar values) 'number))
-            (not (stringp (cadar values))))
+            (and (not (eq (caar values) 'number))
+                 (not (eq (caar values) 'double)))
+            (not (stringp (cl-cadar values))))
         (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'number)))
-    (string-to-number (cadar values))))
+    (string-to-number (cl-cadar values))))
 
 ;;(igo-sgf-property-get-number-value '("HA" (value-list (number "4"))))
 
@@ -366,9 +370,9 @@
   (let ((values (igo-sgf-property-get-values sgf-data)))
     (if (or (not (= (length values) 1))
             (not (eq (caar values) 'double))
-            (not (stringp (cadar values))))
+            (not (stringp (cl-cadar values))))
         (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'double)))
-    (let ((double-value (string-to-number (cadar values))))
+    (let ((double-value (string-to-number (cl-cadar values))))
       (if (not (or (= double-value 1)
                    (= double-value 2)))
           (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'double))
@@ -380,14 +384,14 @@
   (let ((values (igo-sgf-property-get-values sgf-data)))
     (if (or (not (= (length values) 1))
             (not (eq (caar values) 'color))
-            (not (stringp (cadar values)))
-            (not (= (length (cadar values)) 1)))
+            (not (stringp (cl-cadar values)))
+            (not (= (length (cl-cadar values)) 1)))
         (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'color)))
-    (let ((color-char (elt (cadar values) 0)))
+    (let ((color-char (elt (cl-cadar values) 0)))
       (if (not (or (eq color-char ?W)
                    (eq color-char ?B)))
           (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'color))
-        (intern (downcase (cadar values)))))))
+        (intern (downcase (cl-cadar values)))))))
 
 ;;(igo-sgf-property-get-color-value '("PL" (value-list (color "W"))))
 
@@ -395,9 +399,9 @@
   (let ((values (igo-sgf-property-get-values sgf-property)))
     (if (or (not (= (length values) 1))
             (not (eq (caar values) 'text))
-            (not (stringp (cadar values))))
+            (not (stringp (cl-cadar values))))
         (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'text)))
-    (cadar values)))
+    (cl-cadar values)))
 
 (defun igo-sgf-apply-property (sgf-property gamestate)
   (let ((identifier (igo-sgf-property-get-ident sgf-property))
@@ -405,37 +409,34 @@
         (info       (igo-state-get-game-info gamestate)))
     (cond
      ;; move
-     ((string= identifier "B")      (let ((move     (igo-sgf-property-get-move sgf-property))
-                                          (coord    (igo-convert-char-coord-to-num-coord move)))
+     ((string= identifier "B")      (let* ((move     (igo-sgf-property-get-move-value sgf-property))
+                                           (coord    (igo-convert-string-coord-to-coord move)))
                                       (igo-play-move 'b coord gamestate)))
      
-     ((string= identifier "W")      (let ((move     (igo-sgf-property-get-move sgf-property))
-                                          (coord    (igo-convert-char-coord-to-num-coord move)))
+     ((string= identifier "W")      (let* ((move     (igo-sgf-property-get-move-value sgf-property))
+                                           (coord    (igo-convert-string-coord-to-coord move)))
                                       (igo-play-move 'w coord gamestate)))
      
      ((string= identifier "KO")     '(optional-force-move   move))
      ;;((string= identifier "MN")     '(set-move-number       number))
 
      ;; setup
-     ((string= identifier "AB")     (let ((moves     (igo-sgf-property-get-move-list-value sgf-property))
-                                          (coord    (igo-convert-char-coord-to-num-coord move)))
+     ((string= identifier "AB")     (let* ((moves     (igo-sgf-property-get-move-list-value sgf-property)))
                                       (cl-loop for move in moves
-                                               do (let ((coord (igo-convert-char-coord-to-num-coord move)))
+                                               do (let ((coord (igo-convert-string-coord-to-coord move)))
                                                     (igo-add-stone 'b coord gamestate)))))
      
-     ((string= identifier "AW")     (let ((moves     (igo-sgf-property-get-move-list-value sgf-property))
-                                          (coord    (igo-convert-char-coord-to-num-coord move)))
+     ((string= identifier "AW")     (let* ((moves     (igo-sgf-property-get-move-list-value sgf-property)))
                                       (cl-loop for move in moves
-                                               do (let ((coord (igo-convert-char-coord-to-num-coord move)))
+                                               do (let ((coord (igo-convert-string-coord-to-coord move)))
                                                     (igo-add-stone 'w coord gamestate)))))
      
-     ((string= identifier "AE")     (let ((moves     (igo-sgf-property-get-move-list-value sgf-property))
-                                          (coord    (igo-convert-char-coord-to-num-coord move)))
+     ((string= identifier "AE")     (let* ((moves     (igo-sgf-property-get-move-list-value sgf-property)))
                                       (cl-loop for move in moves
-                                               do (let ((coord (igo-convert-char-coord-to-num-coord move)))
+                                               do (let ((coord (igo-convert-string-coord-to-coord move)))
                                                     (igo-add-stone nil coord gamestate)))))
      
-     ((string= identifier "PL")     (let ((color (igo-sgf-property-get-color-value sgf-property)))
+     ((string= identifier "PL")     (let* ((color (igo-sgf-property-get-color-value sgf-property)))
                                       (igo-state-set-current-player color gamestate)))
 
      ;; node annotations (double 1: good 2: very good)
@@ -469,11 +470,11 @@
                                       (igo-info-set-sgf-app-and-version info value)))
      ((string= identifier "CA")     'charset-text)
      ((string= identifier "FF")     'number)
-     ((string= identifier "GM")     (let ((value (igo-sgf-property-get-text sgf-property)))
+     ((string= identifier "GM")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
                                       (if (not (= value 1))
                                           (igo-signal igo-error-unsupported (list 'unsupported 'game value))
                                         'game-number)))
-     ((string= identifier "ST")     (let ((value (igo-sgf-property-get-text sgf-property)))
+     ((string= identifier "ST")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
                                       (igo-info-set-variation-style info value)))
      ((string= identifier "SZ")     '(board-size            size)) ;; !get-size! number or number:number
 
@@ -512,7 +513,7 @@
                                       (igo-info-set-game-rules info value)))
      ((string= identifier "SO")     (let ((value (igo-sgf-property-get-text sgf-property)))
                                       (igo-info-set-game-source info value)))
-     ((string= identifier "TM")     (let ((value (igo-sgf-property-get-text sgf-property)))
+     ((string= identifier "TM")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
                                       (igo-info-set-time-limit info value)))
      ((string= identifier "US")     (let ((value (igo-sgf-property-get-text sgf-property)))
                                       (igo-info-set-game-scribe-user info value)))
@@ -528,13 +529,13 @@
      ((string= identifier "OW")     '(white-moves-left      number))
 
      ;; go specific
-     ((string= identifier "HA")     (let ((value (igo-sgf-property-get-text sgf-property)))
+     ((string= identifier "HA")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
                                       (igo-info-set-game-handicap info value)))
-     ((string= identifier "KM")     (let ((value (igo-sgf-property-get-text sgf-property)))
+     ((string= identifier "KM")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
                                       (igo-info-set-game-komi info value)))
-     ((string= identifier "TB")     (let ((value (igo-sgf-property-get-text sgf-property)))
+     ((string= identifier "TB")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
                                       (igo-info-set-black-territory       move info value)))
-     ((string= identifier "TW")     (let ((value (igo-sgf-property-get-text sgf-property)))
+     ((string= identifier "TW")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
                                       (igo-info-set-white-territory       move info value)))
      
      (t (igo-signal igo-error-unknown-property (list sgf-property))))))
@@ -549,7 +550,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game Info
 
-(defun igo-create-game-info ()
+(defun igo-new-game-info ()
     (vector
      (vector 'sgf-app-and-version: nil)
      (vector 'variation-style: nil)
@@ -735,7 +736,7 @@
             (vector 'ko: nil)
             (vector 'current-player: 'b)
             (vector 'last-move-annotations: nil)
-            (vector 'game-info: nil)
+            (vector 'game-info: (igo-new-game-info))
             )))
 
 (defun igo-state-size (gamestate)
@@ -828,8 +829,7 @@
         (elt gametrees branch-num)))))
 
 (defun igo-gameflow-apply (gameflow gamestate)
-  (let ((new-gamestate (igo-new-gamestate (igo-state-size gamestate)))
-        (path (igo-gameflow-get-path gameflow))
+  (let ((path (igo-gameflow-get-path gameflow))
         (flow (igo-gameflow-get-flow gameflow)))
     (cl-loop for path-element in path
              do (let* ((branch-num   (car path-element))
@@ -840,13 +840,14 @@
                   (cl-loop for i from 1 to count
                            do (let ((node (elt flow i)))
                                 (cl-loop for node-el in (cdr node) ; skipping 'property-list
-                                         do (igo-sgf-apply-node node-el new-gamestate))))
+                                         do (igo-sgf-apply-node node-el gamestate))))
                   (setq flow branch)))))
 
-;; (let ((flow (igo-new-gameflow)))
-;;   (igo-gameflow-set-path flow (list (cons 0 1)))
-;;   (igo-gameflow-set-flow flow (car (igo-parse-sgf-gametree igo-examble-game)))
-;;   (igo-gameflow-apply flow igo-current-gamestate))
+(let ((flow (igo-new-gameflow)))
+  (setq igo-current-gamestate (igo-new-gamestate (cons 19 19)))
+  (igo-gameflow-set-path flow (list (cons 0 1)))
+  (igo-gameflow-set-flow flow (car (igo-parse-sgf-gametree igo-example-game)))
+  (igo-gameflow-apply flow igo-current-gamestate))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1035,6 +1036,12 @@
     (goto-char buff-pos)
     (end-of-line)
     (point)))
+
+(defun igo-convert-string-coord-to-coord (str-coord)
+  (if (or (not (stringp str-coord))
+          (not (= (length str-coord) 2)))
+      (igo-signal 'igo-error-invalid-str-coord (list str-coord)))
+  (igo-convert-char-coord-to-num-coord (cons (downcase (elt str-coord 0)) (upcase (elt str-coord 1)))))
 
 (defun igo-convert-char-coord-to-num-coord (char-coord)
   (cl-labels ((convert-char (char base) (if (not char)
