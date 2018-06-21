@@ -304,6 +304,14 @@
         (igo-signal 'igo-error-invalid-sgf-data (list "expecting: " tag " got: "(car sgf-data)))))
   (elt sgf-data 1))
 
+(defun igo-sgf-gametree-get-gametrees (sgf-data)
+  (if (or (not (listp sgf-data))
+          (not (eq (car sgf-data) 'gametree))
+          (not (listp (elt sgf-data 2)))
+          (not (eq (car (elt sgf-data 2)) 'gametree-list)))
+      (igo-signal 'igo-error-invalid-sgf-data (list "expecting: gamtree, got: " (car sgf-data))))
+  (cdr (elt sgf-data 2)))
+
 (defun igo-sgf-sequence-get-nodes (sgf-data)
   (let ((tag 'sequence-list))
     (if (not (eq (car sgf-data) tag))
@@ -583,143 +591,144 @@
      ))
 
 (defun igo-info-get-sgf-app-and-version (info)
-  (elt info 0))
+  (elt (elt info 0) 1))
 (defun igo-info-set-sgf-app-and-version (info value)
-  (aset info 0 value))
+  (aset (elt info 0) 1 value))
 
 (defun igo-info-get-variation-style (info)
-  (elt info 1))
+  (elt (elt info 1) 1))
 (defun igo-info-set-variation-style (info value)
-  (aset info 1 value))
+  (aset (elt info 1) 1 value))
 
 (defun igo-info-get-board-size (info)
-  (elt info 2))
+  (elt (elt info 2) 1))
 (defun igo-info-set-board-size (info value)
-  (aset info 2 value))
+  (aset (elt info 2) 1 value))
 
 (defun igo-info-get-annotator-name (info)
-  (elt info 3))
+  (elt (elt info 3) 1))
 (defun igo-info-set-annotator-name (info value)
-  (aset info 3 value))
+  (aset (elt info 3) 1 value))
 
 (defun igo-info-get-black-rank (info)
-  (elt info 4))
+  (elt (elt info 4) 1))
 (defun igo-info-set-black-rank (info value)
-  (aset info 4 value))
+  (aset (elt info 4) 1 value))
 
 (defun igo-info-get-black-team (info)
-  (elt info 5))
+  (elt (elt info 5) 1))
 (defun igo-info-set-black-team (info value)
-  (aset info 5 value))
+  (aset (elt info 5) 1 value))
 
 (defun igo-info-get-copyright (info)
-  (elt info 6))
+  (elt (elt info 6) 1))
 (defun igo-info-set-copyright (info value)
-  (aset info 6 value))
+  (aset (elt info 6) 1 value))
 
 (defun igo-info-get-date (info)
-  (elt info 7))
+  (elt (elt info 7) 1))
 (defun igo-info-set-date (info value)
-  (aset info 7 value))
+  (aset (elt info 7) 1 value))
 
 (defun igo-info-get-event (info)
-  (elt info 8))
+  (elt (elt info 8) 1))
 (defun igo-info-set-event (info value)
-  (aset info 8 value))
+  (aset (elt info 8) 1 value))
 
 (defun igo-info-get-game-name (info)
-  (elt info 9))
+  (elt (elt info 9) 1))
 (defun igo-info-set-game-name (info value)
-  (aset info 9 value))
+  (aset (elt info 9) 1 value))
+
 (defun igo-info-get-game-comment (info)
-  (elt info 10))
+  (elt (elt info 10) 1))
 (defun igo-info-set-game-comment (info value)
-  (aset info 10 value))
+  (aset (elt info 10) 1 value))
 
 (defun igo-info-get-opening-info (info)
-  (elt info 11))
+  (elt (elt info 11) 1))
 (defun igo-info-set-opening-info (info value)
-  (aset info 11 value))
+  (aset (elt info 11) 1 value))
 
 (defun igo-info-get-overtime-type (info)
-  (elt info 12))
+  (elt (elt info 12) 1))
 (defun igo-info-set-overtime-type (info value)
-  (aset info 12 value))
+  (aset (elt info 12) 1 value))
 
 (defun igo-info-get-black-player-name (info)
-  (elt info 13))
+  (elt (elt info 13) 1))
 (defun igo-info-set-black-player-name (info value)
-  (aset info 13 value))
+  (aset (elt info 13) 1 value))
 
 (defun igo-info-get-game-place (info)
-  (elt info 14))
+  (elt (elt info 14) 1))
 (defun igo-info-set-game-place (info value)
-  (aset info 14 value))
+  (aset (elt info 14) 1 value))
 
 (defun igo-info-get-white-player-name (info)
-  (elt info 15))
+  (elt (elt info 15) 1))
 (defun igo-info-set-white-player-name (info value)
-  (aset info 15 value))
+  (aset (elt info 15) 1 value))
 
 (defun igo-info-get-result (info)
-  (elt info 16))
+  (elt (elt info 16) 1))
 (defun igo-info-set-result (info value)
-  (aset info 16 value))
+  (aset (elt info 16) 1 value))
 
 (defun igo-info-get-game-round-info (info)
-  (elt info 17))
+  (elt (elt info 17) 1))
 (defun igo-info-set-game-round-info (info value)
-  (aset info 17 value))
+  (aset (elt info 17) 1 value))
 
 (defun igo-info-get-game-rules (info)
-  (elt info 18))
+  (elt (elt info 18) 1))
 (defun igo-info-set-game-rules (info value)
-  (aset info 18 value))
+  (aset (elt info 18) 1 value))
 
 (defun igo-info-get-game-source (info)
-  (elt info 19))
+  (elt (elt info 19) 1))
 (defun igo-info-set-game-source (info value)
-  (aset info 19 value))
+  (aset (elt info 19) 1 value))
 
 (defun igo-info-get-time-limit (info)
-  (elt info 20))
+  (elt (elt info 20) 1))
 (defun igo-info-set-time-limit (info value)
-  (aset info 20 value))
+  (aset (elt info 20) 1 value))
 
 (defun igo-info-get-game-scribe-user (info)
-  (elt info 21))
+  (elt (elt info 21) 1))
 (defun igo-info-set-game-scribe-user (info value)
-  (aset info 21 value))
+  (aset (elt info 21) 1 value))
 
 (defun igo-info-get-white-rank (info)
-  (elt info 22))
+  (elt (elt info 22) 1))
 (defun igo-info-set-white-rank (info value)
-  (aset info 22 value))
+  (aset (elt info 22) 1 value))
 
 (defun igo-info-get-white-team (info)
-  (elt info 23))
+  (elt (elt info 23) 1))
 (defun igo-info-set-white-team (info value)
-  (aset info 23 value))
+  (aset (elt info 23) 1 value))
 
 (defun igo-info-get-game-handicap (info)
-  (elt info 24))
+  (elt (elt info 24) 1))
 (defun igo-info-set-game-handicap (info value)
-  (aset info 24 value))
+  (aset (elt info 24) 1 value))
 
 (defun igo-info-get-game-komi (info)
-  (elt info 25))
+  (elt (elt info 25) 1))
 (defun igo-info-set-game-komi (info value)
-  (aset info 25 value))
+  (aset (elt info 25) 1 value))
 
 (defun igo-info-get-black-territory      (info)
-  (elt info 26))
+  (elt (elt info 26) 1))
 (defun igo-info-set-black-territory      (info value)
-  (aset info 26 value))
+  (aset (elt info 26) 1 value))
 
 (defun igo-info-get-white-territory      (info)
-  (elt info 27))
+  (elt (elt info 27) 1))
 (defun igo-info-set-white-territory      (info value)
-  (aset info 27 value))
+  (aset (elt info 27) 1 value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Go Game State
@@ -812,14 +821,18 @@
 (defun igo-gameflow-set-flow (gameflow flow)
   (aset gameflow 1 flow))
 
-(defun igo-sgf-gametree-get-branch (sgf-gametree branch-num)
+(defun igo-validate-gametree (sgf-gametree)
   (if (or (not (listp sgf-gametree))
           (not (>= (length sgf-gametree) 3))
+          (not (eq (elt sgf-gametree 0)  'gametree))
           (not (listp (elt sgf-gametree 1)))
           (not (eq (car (elt sgf-gametree 1)) 'sequence-list))
           (not (listp (elt sgf-gametree 2)))
           (not (eq (car (elt sgf-gametree 2)) 'gametree-list)))
-      (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'gametree)))
+      (igo-signal 'igo-error-invalid-property-values (list 'values: values 'type: 'gametree))))
+
+(defun igo-sgf-gametree-get-branch (sgf-gametree branch-num)
+  (igo-validate-gametree sgf-gametree)
   (if (<= branch-num 0)
       (elt sgf-gametree 1)
     (let ((gametrees (elt sgf-gametree 2)))
@@ -847,7 +860,8 @@
 ;;   (setq igo-current-gamestate (igo-new-gamestate (cons 19 19)))
 ;;   (igo-gameflow-set-path flow (list (cons 0 1)))
 ;;   (igo-gameflow-set-flow flow (car (igo-parse-sgf-gametree igo-example-game)))
-;;   (igo-gameflow-apply flow igo-current-gamestate))
+;;   (setq igo-current-gameflow flow)
+;;   (igo-gameflow-apply igo-current-gameflow igo-current-gamestate))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -998,28 +1012,44 @@
          (black-rank (igo-info-get-black-rank (igo-state-get-game-info gamestate)))
          (white-player (igo-info-get-white-player-name (igo-state-get-game-info gamestate)))
          (white-rank (igo-info-get-white-rank (igo-state-get-game-info gamestate)))
-         (players-str (concat "- Players - black: " black-player "(" black-rank
-                              ") white: " white-player "(" white-rank ")")))
+         (players-str (if (and black-player black-rank white-player white-rank)
+                          (concat "- Players - black: " black-player "(" black-rank
+                                  ") white: " white-player "(" white-rank ")")
+                        ""))
+         (annotation (igo-state-get-last-move-annotation gamestate)))
     (insert players-str)
     (newline)
     (insert captures-str)
     (newline)
-    (newline)
-    (insert (igo-state-get-last-move-annotation gamestate))))
+    (if annotation
+        (progn (newline)
+               (insert annotation)))))
 
 ;; (let ((state (igo-new-gamestate (cons 9 9))))
 ;;   (newline)
 ;;   (igo-draw-goban state))
 
-(defun igo-draw-gametree (gametree)
-  ;todo
-  )
+(defun igo-draw-gametree (gametree start-node-num)
+  (igo-validate-gametree gametree)
+
+  (let ((seq-nodes (igo-sgf-sequence-get-nodes (igo-sgf-gametree-get-sequence gametree)))
+        (rest-trees (igo-sgf-gametree-get-gametrees gametree))
+        (node-num start-node-num)
+        (seq-string ""))
+    (cl-loop for node in seq-nodes
+             do (progn (setq seq-string (concat seq-string (number-to-string node-num) "-"))
+                       (setq node-num (+ node-num 1))))
+    (insert seq-string)
+    (cl-loop for tree in rest-trees
+             for i from 0 to (- (length rest-trees) 1)
+             do (progn (if (not (= i 0)) (progn (newline) (insert (make-string (length seq-string) ?\s))))
+                       (igo-draw-gametree tree node-num)))
+    nil))
 
 (defun igo-draw-gameflow (gameflow)
-    (let ((path (igo-gameflow-get-path gameflow))
-          (flow (igo-gameflow-get-flow gameflow)))
-      ;todo
-      ))
+  (let ((path (igo-gameflow-get-path gameflow))
+        (flow (igo-gameflow-get-flow gameflow)))
+    (igo-draw-gametree flow 0)))
 
 (defun igo-redraw ()
   (if (igo-is-igo-buffer?)
@@ -1027,7 +1057,8 @@
         (erase-buffer)
         (igo-draw-goban igo-current-gamestate)
         (igo-draw-gameinfo igo-current-gamestate)
-        (igo-draw-gameflow igo-current-gameflow))))
+        ;;(igo-draw-gameflow igo-current-gameflow)
+        )))
 
 (defun igo-read-coord (gamestate)
   (let* ((play-str (read-string "coord: " nil nil))
@@ -1070,6 +1101,14 @@
 (defun igo-convert-num-coord-to-char-coord (num-coord)
   (cons (+ ?a (car num-coord) -1) (+ ?A (cdr num-coord) -1)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; igo placement mode (need to rename play to placement)
+
+(defun igo-remove-display-current-move ()
+  (while igo-active-overlays
+    (let ((overlay (pop igo-active-overlays)))
+      (delete-overlay overlay))))
+
 (defun igo-display-current-move ()
   (let* ((coord (igo-convert-char-coord-to-num-coord igo-play-current-move))
          (board-size (igo-state-size igo-current-gamestate))
@@ -1088,9 +1127,7 @@
                        (insert (igo-player-stone (igo-state-get-current-player igo-current-gamestate))))))
 
                ;; delete existing overlays
-               (while igo-active-overlays
-                 (let ((overlay (pop igo-active-overlays)))
-                   (delete-overlay overlay)))
+               (igo-remove-display-current-move)
 
                ;; add row highlight overlay
                (if row-num
@@ -1121,10 +1158,10 @@
                      (overlay-put move-overlay-border 'face `(:background "grey80"))))))
 
     ;; display message 
-    (let ((col-char (if (car igo-play-current-move) (car igo-play-current-move) ??))
-          (row-char (if (cdr igo-play-current-move) (cdr igo-play-current-move) ??))
-          (current-player (igo-state-get-current-player igo-current-gamestate))
-          (player-str (cond ((eq current-player 'b) "black") ((eq current-player 'w) "white") (t "unknown"))))
+    (let* ((col-char (if (car igo-play-current-move) (car igo-play-current-move) ??))
+           (row-char (if (cdr igo-play-current-move) (cdr igo-play-current-move) ??))
+           (current-player (igo-state-get-current-player igo-current-gamestate))
+           (player-str (cond ((eq current-player 'b) "black") ((eq current-player 'w) "white") (t "unknown"))))
       (message (concat "Next move for " player-str ":" (string col-char row-char) " press [enter] to submit or ctl-g to abort")))))
 
 (defun igo-play-set-col (char)
@@ -1149,7 +1186,7 @@
     (igo-play-move current-player coord igo-current-gamestate)
     (setq igo-play-last-move igo-play-current-move)
     (setq igo-play-current-move (cons nil nil))
-    (igo-state-set-current-player (igo-other-player igo-play-current-player) igo-current-gamestate)
+    (igo-state-set-current-player (igo-other-player current-player) igo-current-gamestate)
     (igo-redraw)
     (igo-display-current-move)))
 
@@ -1194,31 +1231,58 @@
     (define-key map (kbd "<left>")      (lambda () (interactive) (igo-play-arrow-input -1 0)))
     (define-key map (kbd "<up>")        (lambda () (interactive) (igo-play-arrow-input 0 -1)))
     (define-key map (kbd "<down>")      (lambda () (interactive) (igo-play-arrow-input 0 1)))
-    (define-key map (kbd "<SPC>")     'igo-play-mode)
+    (define-key map (kbd "<SPC>")     'igo-cycle-mode)
 	map))
 
 (defun igo-play-mode (&optional optionalNewMode)
   (interactive)
-  (let ((next-mode (if optionalNewMode
-                       optionalNewMode
-                     (if (eq igo-current-mode 'play) nil 'play))))
-   (setq igo-current-mode next-mode))
-
-  (if (eq igo-current-mode 'play)
-	  (setq igo-mode-map (igo-play-mode-map))
-	(setq igo-mode-map (igo-default-map)))
+  
+  (setq igo-current-mode 'play)
+  (setq igo-mode-map (igo-play-mode-map))
 
   (if (igo-is-igo-buffer?)
       (use-local-map igo-mode-map))
-  
-  (if (eq igo-current-mode 'play)
-      (progn
-        (igo-redraw)
-        (igo-display-current-move))
-    (message (concat "igo current mode: "(symbol-name igo-current-mode)))))
+  (igo-redraw)
+  (igo-display-current-move)
+  (message (concat "igo current mode: "(symbol-name igo-current-mode))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; igo view mode
+
+(defun igo-view-arrow-input (delta-col delta-row)
+  'todo)
+
+(defun igo-view-mode-map ()
+  (let ((size (igo-state-size igo-current-gamestate))
+		(map (make-sparse-keymap)))
+    (set-keymap-parent map special-mode-map)
+    (define-key map (kbd "<right>")     (lambda () (interactive) (igo-view-arrow-input 1 0)))
+    (define-key map (kbd "<left>")      (lambda () (interactive) (igo-view-arrow-input -1 0)))
+    (define-key map (kbd "<up>")        (lambda () (interactive) (igo-view-arrow-input 0 -1)))
+    (define-key map (kbd "<down>")      (lambda () (interactive) (igo-view-arrow-input 0 1)))
+    (define-key map (kbd "<SPC>")     'igo-cycle-mode)
+	map))
+
+(defun igo-view-mode ()
+  "Sets igo into view mode."
+  (interactive)
+  (setq igo-current-mode 'view)
+  (setq igo-mode-map (igo-view-mode-map))
+  (if (igo-is-igo-buffer?)
+      (use-local-map igo-mode-map))
+  (igo-redraw)
+  (igo-remove-display-current-move)
+  (message (concat "igo current mode: "(symbol-name igo-current-mode))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; igo-mode definition
+
+(defun igo-cycle-mode ()
+  "Cycles through igo modes"
+  (interactive)
+  (cond ((eq igo-current-mode 'play) (igo-view-mode))
+        ((eq igo-current-mode 'view) (igo-play-mode))
+        (t (igo-view-mode))))
 
 (defun igo ()
   "Play go"
@@ -1235,7 +1299,7 @@
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map special-mode-map)
 	(define-key map "p" 'igo-play-next-move)
-    (define-key map (kbd "<SPC>")     'igo-play-mode)
+    (define-key map (kbd "<SPC>")     'igo-cycle-mode)
 	;; (define-key map (kbd "<C-M-backspace>") 'ide-grep-solution)
 	map))
 
