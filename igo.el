@@ -504,7 +504,7 @@
      ((string= identifier "PC")     (let ((value (igo-sgf-property-get-text sgf-property)))
                                       (igo-info-set-game-place info value)))
      ((string= identifier "PW")     (let ((value (igo-sgf-property-get-text sgf-property)))
-                                      (igo-info-set-white-palyer-name info value)))
+                                      (igo-info-set-white-player-name info value)))
      ((string= identifier "RE")     (let ((value (igo-sgf-property-get-text sgf-property)))
                                       (igo-info-set-result info value)))
      ((string= identifier "RO")     (let ((value (igo-sgf-property-get-text sgf-property)))
@@ -567,7 +567,7 @@
      (vector 'overtime-type: nil)
      (vector 'black-player-name: nil)
      (vector 'game-place: nil)
-     (vector 'white-palyer-name: nil)
+     (vector 'white-player-name: nil)
      (vector 'result: nil)
      (vector 'game-round-info: nil)
      (vector 'game-rules: nil)
@@ -656,9 +656,9 @@
 (defun igo-info-set-game-place (info value)
   (aset info 14 value))
 
-(defun igo-info-get-white-palyer-name (info)
+(defun igo-info-get-white-player-name (info)
   (elt info 15))
-(defun igo-info-set-white-palyer-name (info value)
+(defun igo-info-set-white-player-name (info value)
   (aset info 15 value))
 
 (defun igo-info-get-result (info)
@@ -843,11 +843,11 @@
                                          do (igo-sgf-apply-node node-el gamestate))))
                   (setq flow branch)))))
 
-(let ((flow (igo-new-gameflow)))
-  (setq igo-current-gamestate (igo-new-gamestate (cons 19 19)))
-  (igo-gameflow-set-path flow (list (cons 0 1)))
-  (igo-gameflow-set-flow flow (car (igo-parse-sgf-gametree igo-example-game)))
-  (igo-gameflow-apply flow igo-current-gamestate))
+;; (let ((flow (igo-new-gameflow)))
+;;   (setq igo-current-gamestate (igo-new-gamestate (cons 19 19)))
+;;   (igo-gameflow-set-path flow (list (cons 0 1)))
+;;   (igo-gameflow-set-flow flow (car (igo-parse-sgf-gametree igo-example-game)))
+;;   (igo-gameflow-apply flow igo-current-gamestate))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -992,25 +992,42 @@
 		 (width (car (igo-state-size gamestate)))
          (black-captures (igo-state-get-capture 'b gamestate))
          (white-captures (igo-state-get-capture 'w gamestate))
-         (black-str (concat "black: " (number-to-string black-captures)))
-         (white-str (concat "white: " (number-to-string white-captures)))
-         (header "- Captures -")
-         (padding-count (max 0 (- (* 2 width) (+ (length black-str) (length white-str) (length header)))))
-         (pad (max 1 (/ padding-count 4)))
-         (pad-str (make-string pad ?\s)))
-    (insert pad-str header pad-str black-str pad-str white-str pad-str)
-    (newline)))
+         (captures-str (concat "- Captures - black: " (number-to-string black-captures)
+                               " white: " (number-to-string white-captures)))
+         (black-player (igo-info-get-black-player-name (igo-state-get-game-info gamestate)))
+         (black-rank (igo-info-get-black-rank (igo-state-get-game-info gamestate)))
+         (white-player (igo-info-get-white-player-name (igo-state-get-game-info gamestate)))
+         (white-rank (igo-info-get-white-rank (igo-state-get-game-info gamestate)))
+         (players-str (concat "- Players - black: " black-player "(" black-rank
+                              ") white: " white-player "(" white-rank ")")))
+    (insert players-str)
+    (newline)
+    (insert captures-str)
+    (newline)
+    (newline)
+    (insert (igo-state-get-last-move-annotation gamestate))))
 
 ;; (let ((state (igo-new-gamestate (cons 9 9))))
 ;;   (newline)
 ;;   (igo-draw-goban state))
+
+(defun igo-draw-gametree (gametree)
+  ;todo
+  )
+
+(defun igo-draw-gameflow (gameflow)
+    (let ((path (igo-gameflow-get-path gameflow))
+          (flow (igo-gameflow-get-flow gameflow)))
+      ;todo
+      ))
 
 (defun igo-redraw ()
   (if (igo-is-igo-buffer?)
       (let ((inhibit-read-only t))
         (erase-buffer)
         (igo-draw-goban igo-current-gamestate)
-        (igo-draw-gameinfo igo-current-gamestate))))
+        (igo-draw-gameinfo igo-current-gamestate)
+        (igo-draw-gameflow igo-current-gameflow))))
 
 (defun igo-read-coord (gamestate)
   (let* ((play-str (read-string "coord: " nil nil))
