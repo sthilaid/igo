@@ -1049,7 +1049,11 @@
 (defun igo-draw-gameflow (gameflow)
   (let ((path (igo-gameflow-get-path gameflow))
         (flow (igo-gameflow-get-flow gameflow)))
-    (igo-draw-gametree flow 0)))
+    ;(igo-draw-gametree flow 0)
+
+    ;; draw path
+    (insert (concat "- Path - " (with-output-to-string (pp (igo-gameflow-get-path gameflow)))))
+    (newline)))
 
 (defun igo-redraw ()
   (if (igo-is-igo-buffer?)
@@ -1057,7 +1061,7 @@
         (erase-buffer)
         (igo-draw-goban igo-current-gamestate)
         (igo-draw-gameinfo igo-current-gamestate)
-        ;;(igo-draw-gameflow igo-current-gameflow)
+        (igo-draw-gameflow igo-current-gameflow)
         )))
 
 (defun igo-read-coord (gamestate)
@@ -1250,7 +1254,22 @@
 ;; igo view mode
 
 (defun igo-view-arrow-input (delta-col delta-row)
-  'todo)
+  (debug)
+  (let* ((path (igo-gameflow-get-path igo-current-gameflow))
+         (current-path-el (elt path (- (length path) 1)))
+         (flow (igo-gameflow-get-flow igo-current-gameflow)))
+    (let* ((count (cdr current-path-el))
+           (new-count (+ count delta-col)))
+      (if (>= new-count 0)
+          (setcdr current-path-el new-count))
+      (progn (let ((prev-path (- path 1))
+                   (prev-path-el (if (<= prev-path 0)
+                                     (elt path prev-path)
+                                   nil)))
+               (if prev-path-el
+                   (progn (setcdr prev-path-el nil)
+                          (igo-view-arrow-input (- new-count)))
+                 (igo-gameflow-set-path (cons 0 0))))))))
 
 (defun igo-view-mode-map ()
   (let ((size (igo-state-size igo-current-gamestate))
