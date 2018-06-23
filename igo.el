@@ -428,11 +428,17 @@
      ;; move
      ((string= identifier "B")      (let* ((move     (igo-sgf-property-get-move-value sgf-property))
                                            (coord    (igo-convert-string-coord-to-coord move)))
-                                      (igo-play-move 'b coord gamestate)))
+                                      (if (or (string= move "tt")
+                                              (string= move ""))
+                                          (igo-state-set-move-comment "black passes" gamestate)
+                                        (igo-play-move 'b coord gamestate))))
      
      ((string= identifier "W")      (let* ((move     (igo-sgf-property-get-move-value sgf-property))
                                            (coord    (igo-convert-string-coord-to-coord move)))
-                                      (igo-play-move 'w coord gamestate)))
+                                      (if (or (string= move "tt")
+                                              (string= move ""))
+                                          (igo-state-set-move-comment "white passes" gamestate)
+                                        (igo-play-move 'w coord gamestate))))
      
      ((string= identifier "KO")     '(optional-force-move   move))
      ;;((string= identifier "MN")     '(set-move-number       number))
@@ -569,10 +575,10 @@
                                       (igo-info-set-game-handicap info value)))
      ((string= identifier "KM")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
                                       (igo-info-set-game-komi info value)))
-     ((string= identifier "TB")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
-                                      (igo-info-set-black-territory       move info value)))
-     ((string= identifier "TW")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
-                                      (igo-info-set-white-territory       move info value)))
+     ((string= identifier "TB")     (let ((value (igo-sgf-property-get-move-list-value sgf-property)))
+                                      (igo-info-set-black-territory info value)))
+     ((string= identifier "TW")     (let ((value (igo-sgf-property-get-move-list-value sgf-property)))
+                                      (igo-info-set-white-territory info value)))
      
      (t (igo-signal 'igo-error-unknown-property (list sgf-property))))))
 
@@ -893,12 +899,19 @@
         (gametree (igo-gameflow-get-flow gameflow))
         (new-gamestate (igo-new-gamestate (igo-state-size gamestate))))
     (cl-loop for path-element in path
+             for idx = 0 then (+ idx 1)
+             with path-is-ok = t
+             while path-is-ok
              do (let ((branch-instruction (igo-gameflow-path-branch-instruction? path-element)))
                   (if branch-instruction
                       (let ((gametrees (igo-sgf-gametree-get-gametrees gametree)))
-                        (if (>= branch-instruction (length gametrees))
-                            (igo-signal 'igo-error-invalid-path (list "branch num: " branch-instruction
-                                                                      " too big, max is: " (- (length gametrees) 1))))
+                        (if (= (length gametrees) 0)
+                            (progn (if (> idx 0)
+                                       (setcdr (nthcdr (- idx 1) path) nil))
+                                   (setq path-is-ok nil))
+                          (if (>= branch-instruction (length gametrees))
+                              (igo-signal 'igo-error-invalid-path (list "branch num: " branch-instruction
+                                                                        " too big, max is: " (- (length gametrees) 1)))))
                         (setq gametree (elt gametrees branch-instruction)))
                     (let* ((sequence (igo-sgf-gametree-get-sequence gametree))
                            (sequence-nodes (igo-sgf-sequence-get-nodes sequence)))
@@ -907,7 +920,7 @@
                       (if (>= path-element (length sequence-nodes))
                           (igo-signal 'igo-error-invalid-path (list "path node number too big: " path-element
                                                                     " max is: " (- (length sequence-nodes) 1))))
-                      (cl-loop for node-idx from 0 to (car path)
+                      (cl-loop for node-idx from 0 to path-element
                                do (igo-sgf-apply-node (elt sequence-nodes node-idx) new-gamestate))))))
     new-gamestate))
 
@@ -965,12 +978,7 @@
 	(igo-state-set-ko nil gamestate) ; reset ko
 	(igo-state-set coord gamestate player)
 
-	(let ((group-liberties (igo-get-liberties (igo-get-group coord gamestate) gamestate)))
-	  (if (= group-liberties 0)
-		  (progn (igo-state-set coord gamestate nil)
-				 (igo-signal 'igo-error-invalid-move (list (concat "Suicide move are not allowed..."))))))
-
-	(let ((other-player (igo-other-player player))
+    (let ((other-player (igo-other-player player))
 		  (neighbours (igo-get-neighbours coord)))
 	  (dolist (neighbour-coord neighbours)
 		(let ((neighbour-value (igo-state-get neighbour-coord gamestate)))
@@ -979,7 +987,13 @@
 				(if (= (igo-get-liberties neighbour-group gamestate) 0)
 					(progn (igo-capture-group neighbour-group gamestate)
 						   (if (= (length neighbour-group) 1)
-							   (igo-state-set-ko neighbour-coord gamestate)))))))))))
+							   (igo-state-set-ko neighbour-coord gamestate)))))))))
+    
+	(let ((group-liberties (igo-get-liberties (igo-get-group coord gamestate) gamestate)))
+	  (if (= group-liberties 0)
+		  (progn (igo-state-set coord gamestate nil)
+				 (igo-signal 'igo-error-invalid-move (list (concat "Suicide move are not allowed..."))))))
+	))
 
 ;; (let ((state (igo-new-gamestate (cons 9 9))))
 ;;   (igo-play-move 'w '(1 . 1) state)
@@ -1055,6 +1069,14 @@
          (white-captures (igo-state-get-capture 'w gamestate))
          (captures-str (concat "- Captures - black: " (number-to-string black-captures)
                                " white: " (number-to-string white-captures)))
+         (black-territory (igo-info-get-black-territory (igo-state-get-game-info gamestate)))
+         (white-territory (igo-info-get-white-territory (igo-state-get-game-info gamestate)))
+         (territory-str (if (or black-territory white-territory)
+                            (concat "- Territory - black: "
+                                    (number-to-string (if black-territory (length black-territory) 0))
+                                    " white: "
+                                    (number-to-string (if white-territory (length white-territory) 0)))
+                          nil))
          (black-player (igo-info-get-black-player-name (igo-state-get-game-info gamestate)))
          (black-rank (igo-info-get-black-rank (igo-state-get-game-info gamestate)))
          (white-player (igo-info-get-white-player-name (igo-state-get-game-info gamestate)))
@@ -1069,6 +1091,8 @@
     (newline)
     (insert captures-str)
     (newline)
+    (if territory-str
+        (progn (insert territory-str) (newline)))
     (if annotation
         (insert (concat "- Annotation - " annotation)))
     (if comment
@@ -1102,7 +1126,9 @@
     ;(igo-draw-gametree flow 0)
 
     ;; draw path
-    (insert (concat "- Path - " (with-output-to-string (pp (igo-gameflow-get-path gameflow)))))
+    (insert (concat "- Path - Move: " (number-to-string
+                                       (cl-reduce (lambda (sum v) (if (consp v) (+ sum 1) (+ sum v))) path :initial-value 0))
+                    (with-output-to-string (print (igo-gameflow-get-path gameflow)))))
     (newline)))
 
 (defun igo-redraw ()
@@ -1303,32 +1329,45 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; igo view mode
 
+(defun igo-get-prev-path-el (path idx)
+  (if (>= idx (length path))
+      (igo-signal 'igo-error-invalid-path (list "invalid path index: " idx " for path length: " (length path))))
+  (if (<= idx 0)
+      nil
+    (let ((prev-index (- idx 1)))
+      (if (>= prev-index 0)
+          (let ((prev-el (nthcdr prev-index path)))
+            (if (igo-gameflow-path-branch-instruction? (car prev-el))
+                (igo-get-prev-path-el path prev-index)
+              prev-el))
+        nil))))
+
 (defun igo-view-apply-delta-path (delta-col delta-row)
   (let* ((path (igo-gameflow-get-path igo-current-gameflow))
-         (current-path-el (let ((index (- (length path) 1)))
-                            (if (>= index 0)
-                                (nthcdr index path)
-                              nil)))
-         (prev-path-el (let ((prev-index (- (length path) 2)))
-                         (if (>= prev-index 0)
-                             (nthcdr prev-index path)
-                           nil))))
+         (current-path-idx (- (length path) 1))
+         (current-path-el (if (>= current-path-idx 0)
+                              (nthcdr current-path-idx path)
+                            nil)))
+    (if (igo-gameflow-path-branch-instruction? (car current-path-el))
+        (igo-signal 'igo-error-invalid-path (list "unexpected branch path")))
+    
     (if (not current-path-el)
         (igo-gameflow-set-path igo-current-gameflow (list (max 0 delta-col)))
-      (let* ((new-current-path-el (+ (car current-path-el) delta-col))
+      (let* ((new-current-path-value (+ (car current-path-el) delta-col))
              (current-gametree (igo-gameflow-get-current-gametree igo-current-gameflow))
              (current-gametree-seq (igo-sgf-gametree-get-sequence current-gametree))
              (current-tree-nodes (igo-sgf-sequence-get-nodes current-gametree-seq))
              (node-count (length current-tree-nodes)))
-        (cond ((< new-current-path-el 0)
-               (if prev-path-el
-                   (progn (setcdr prev-path-el nil)
-                          (igo-view-apply-delta-path (- new-current-path-el) delta-row))
-                 (igo-gameflow-set-path igo-current-gameflow (list 0))))
-              ((>= new-current-path-el node-count)
-               (setcdr current-path-el (cons (list 'branch 0) (cons (- new-current-path-el node-count) nil))))
+        (cond ((< new-current-path-value 0)
+               (let ((prev-path-el (igo-get-prev-path-el path (- (length path) 1))))
+                 (if prev-path-el
+                     (progn (setcdr prev-path-el nil)
+                            (igo-view-apply-delta-path (- new-current-path-value (- 1)) delta-row))
+                   (igo-gameflow-set-path igo-current-gameflow (list 0)))))
+              ((>= new-current-path-value node-count)
+               (setcdr current-path-el (cons (list 'branch 0) (cons (- new-current-path-value node-count) nil))))
               (t
-               (setcar current-path-el new-current-path-el)))))
+               (setcar current-path-el new-current-path-value)))))
                                         ;(debug)
     ))
 
@@ -1345,6 +1384,8 @@
     (define-key map (kbd "<left>")      (lambda () (interactive) (igo-view-arrow-input -1 0)))
     (define-key map (kbd "<up>")        (lambda () (interactive) (igo-view-arrow-input 0 -1)))
     (define-key map (kbd "<down>")      (lambda () (interactive) (igo-view-arrow-input 0 1)))
+    (define-key map (kbd "<S-right>")     (lambda () (interactive) (igo-view-arrow-input 10 0)))
+    (define-key map (kbd "<S-left>")      (lambda () (interactive) (igo-view-arrow-input -10 0)))
     (define-key map (kbd "<SPC>")     'igo-cycle-mode)
 	map))
 
