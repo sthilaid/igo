@@ -50,7 +50,6 @@
 ;;   (switch-to-buffer (generate-new-buffer-name "igo-example-game"))
 ;;   (insert igo-example-game))
 
-
 (defun igo-is-igo-buffer? ()
   (string= (buffer-name (current-buffer))
            igo-buffer-name))
@@ -490,9 +489,9 @@
                                       (igo-state-set-last-move-annotation (concat "tesuji: " str-double) gamestate)))
 
      ;; markup
-     ;;((string= identifier "AR")     '(arror                 move : move))
-     ;;((string= identifier "LN")     '(line                  move : move))
-     ;;((string= identifier "VW")     '(board-text            move : text))
+     ((string= identifier "AR")     '(arror                 move : move))
+     ((string= identifier "LN")     '(line                  move : move))
+     ((string= identifier "LB")     '(board-text            move : text))
      ((string= identifier "CR")     '(circle                move-list))
      ((string= identifier "DD")     '(greyed                move-list))
      ((string= identifier "MA")     '(mark                  move-list))
@@ -562,6 +561,9 @@
      ((string= identifier "OB")     '(black-moves-left      number))
      ((string= identifier "OW")     '(white-moves-left      number))
 
+     ;; miscelaneous
+     ((string= identifier "VW")     '(view-only-part-of-the-board      point-list))
+
      ;; go specific
      ((string= identifier "HA")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
                                       (igo-info-set-game-handicap info value)))
@@ -572,12 +574,14 @@
      ((string= identifier "TW")     (let ((value (igo-sgf-property-get-number-value sgf-property)))
                                       (igo-info-set-white-territory       move info value)))
      
-     (t (igo-signal igo-error-unknown-property (list sgf-property))))))
+     (t (igo-signal 'igo-error-unknown-property (list sgf-property))))))
 
 (defun igo-sgf-apply-node (sgf-data gamestate)
   (if (or (not (listp sgf-data))
           (not (eq (car sgf-data) 'property-list)))
       (igo-signal 'igo-error-invalid-property-values `(invalid node: ,sgf-data)))
+  (igo-state-set-move-comment nil gamestate)
+  (igo-state-set-last-move-annotation nil gamestate)
   (cl-loop for prop in (cdr sgf-data)
            do (igo-sgf-apply-property prop gamestate)))
 
@@ -1322,7 +1326,7 @@
                           (igo-view-apply-delta-path (- new-current-path-el) delta-row))
                  (igo-gameflow-set-path igo-current-gameflow (list 0))))
               ((>= new-current-path-el node-count)
-               (setcdr current-path-el (cons (- new-current-path-el node-count) nil)))
+               (setcdr current-path-el (cons (list 'branch 0) (cons (- new-current-path-el node-count) nil))))
               (t
                (setcar current-path-el new-current-path-el)))))
                                         ;(debug)
@@ -1332,25 +1336,6 @@
   (igo-view-apply-delta-path delta-col delta-row)
   (setq igo-current-gamestate (igo-gameflow-apply igo-current-gameflow igo-current-gamestate))
   (igo-redraw))
-
-;; (defun igo-view-arrow-input (delta-col delta-row)
-;;   (let* ((path (igo-gameflow-get-path igo-current-gameflow))
-;;          (current-path-el (elt path (- (length path) 1)))
-;;          (flow (igo-gameflow-get-flow igo-current-gameflow))
-;;          (current-path-count (cdr current-path-el))
-;;          (new-count (+ current-path-count delta-col)))
-;;     (if (>= new-count 0)
-;;           (setcdr current-path-el new-count)
-;;       (progn (let* ((prev-path-idx (- (length path) 2)))
-;;                (if (>= prev-path-idx 0)
-;;                    (let ((prev-path-el (elt path prev-path)))
-;;                      (setcdr prev-path-el nil)
-;;                      (igo-view-arrow-input (- new-count)))
-;;                  (igo-gameflow-set-path igo-current-gameflow (list (cons 0 0)))))))
-;;     ;(debug)
-;;     )
-;;   (setq igo-current-gamestate (igo-gameflow-apply igo-current-gameflow igo-current-gamestate))
-;;   (igo-redraw))
 
 (defun igo-view-mode-map ()
   (let ((size (igo-state-size igo-current-gamestate))
