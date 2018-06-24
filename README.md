@@ -10,3 +10,4 @@ To do:
 - Better support <up> to go up the parent branch if you branch index is 0
 - Edit mode: new mode to edit game information.
  - SGF export
+ - Test non 19x19 games...!
