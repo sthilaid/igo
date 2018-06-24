@@ -906,7 +906,7 @@
                   (if branch-instruction
                       (let ((gametrees (igo-sgf-gametree-get-gametrees gametree)))
                         (if (= (length gametrees) 0)
-                            (progn (if (> idx 0)
+                            (progn (if (> idx 0) ; fix the path if it's broken
                                        (setcdr (nthcdr (- idx 1) path) nil))
                                    (setq path-is-ok nil))
                           (if (>= branch-instruction (length gametrees))
@@ -1329,50 +1329,84 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; igo view mode
 
-(defun igo-get-prev-path-el (path idx)
+(defun igo-get-prev-path-el (path idx &optional keep-branch?)
   (if (>= idx (length path))
-      (igo-signal 'igo-error-invalid-path (list "invalid path index: " idx " for path length: " (length path))))
-  (if (<= idx 0)
       nil
-    (let ((prev-index (- idx 1)))
-      (if (>= prev-index 0)
-          (let ((prev-el (nthcdr prev-index path)))
-            (if (igo-gameflow-path-branch-instruction? (car prev-el))
-                (igo-get-prev-path-el path prev-index)
-              prev-el))
-        nil))))
+    (if (<= idx 0)
+        nil
+      (let ((prev-index (- idx 1)))
+        (if (>= prev-index 0)
+            (let ((prev-el (nthcdr prev-index path)))
+              (if (igo-gameflow-path-branch-instruction? (car prev-el))
+                  (if keep-branch?
+                      prev-el
+                    (igo-get-prev-path-el path prev-index))
+                prev-el))
+          nil)))))
 
-(defun igo-view-apply-delta-path (delta-col delta-row)
-  (let* ((path (igo-gameflow-get-path igo-current-gameflow))
-         (current-path-idx (- (length path) 1))
-         (current-path-el (if (>= current-path-idx 0)
-                              (nthcdr current-path-idx path)
-                            nil)))
-    (if (igo-gameflow-path-branch-instruction? (car current-path-el))
-        (igo-signal 'igo-error-invalid-path (list "unexpected branch path")))
+(defun igo-get-parent-path (path)
+  (let* ((path-copy (copy-sequence path))
+         (current-path-idx (- (length path-copy) 1))
+         (prev-path-el (igo-get-prev-path-el path-copy current-path-idx)))
+    (if (not prev-path-el)
+        nil
+      (progn (setcdr prev-path-el nil)
+             path-copy))))
+
+(defun igo-get-parent-gametree (path)
+  (let ((parent-path (igo-get-parent-path path))
+        (flow-copy (copy-sequence igo-current-gameflow)))
+    (igo-gameflow-set-path flow-copy parent-path)
+    (igo-gameflow-get-current-gametree flow-copy)))
+
+(defun igo-view-apply-delta-row (delta-row)
+  (if (not (= delta-row 0))
+      (let* ((path (igo-gameflow-get-path igo-current-gameflow))
+             (current-path-idx  (- (length path) 1))
+             (prev-path-branch  (car (igo-get-prev-path-el path current-path-idx 'keep-branch))))
+        (if (igo-gameflow-path-branch-instruction? prev-path-branch)
+            (let* ((parent-gametree   (igo-get-parent-gametree path))
+                   (max-branch        (- (length (igo-sgf-gametree-get-gametrees parent-gametree)) 1))
+                   (branch-id-cell   (cdr prev-path-branch)))
+              (setcar branch-id-cell (min max-branch (max 0 (+ (car branch-id-cell) delta-row))))
+
+              ;; must get after changing the tree in the path to get the right sequence
+              (let* ((current-path-el   (nthcdr (- (length path) 1) path))
+                     (gametree          (igo-gameflow-get-current-gametree igo-current-gameflow))
+                     (current-seq-nodes (igo-sgf-sequence-get-nodes (igo-sgf-gametree-get-sequence gametree))))
+                (setcar current-path-el (max 0 (min (car current-path-el) (- (length current-seq-nodes) 1))))))))))
+
+(defun igo-view-apply-delta-col (delta-col)
+  (if (not (= delta-col 0))
+   (let* ((path (igo-gameflow-get-path igo-current-gameflow))
+          (current-path-idx (- (length path) 1))
+          (current-path-el (if (>= current-path-idx 0)
+                               (nthcdr current-path-idx path)
+                             nil)))
+     (if (igo-gameflow-path-branch-instruction? (car current-path-el))
+         (igo-signal 'igo-error-invalid-path (list "unexpected branch path")))
     
-    (if (not current-path-el)
-        (igo-gameflow-set-path igo-current-gameflow (list (max 0 delta-col)))
-      (let* ((new-current-path-value (+ (car current-path-el) delta-col))
-             (current-gametree (igo-gameflow-get-current-gametree igo-current-gameflow))
-             (current-gametree-seq (igo-sgf-gametree-get-sequence current-gametree))
-             (current-tree-nodes (igo-sgf-sequence-get-nodes current-gametree-seq))
-             (node-count (length current-tree-nodes)))
-        (cond ((< new-current-path-value 0)
-               (let ((prev-path-el (igo-get-prev-path-el path (- (length path) 1))))
-                 (if prev-path-el
-                     (progn (setcdr prev-path-el nil)
-                            (igo-view-apply-delta-path (- new-current-path-value (- 1)) delta-row))
-                   (igo-gameflow-set-path igo-current-gameflow (list 0)))))
-              ((>= new-current-path-value node-count)
-               (setcdr current-path-el (cons (list 'branch 0) (cons (- new-current-path-value node-count) nil))))
-              (t
-               (setcar current-path-el new-current-path-value)))))
-                                        ;(debug)
-    ))
+     (if (not current-path-el)
+         (igo-gameflow-set-path igo-current-gameflow (list (max 0 delta-col)))
+       (let* ((new-current-path-value (+ (car current-path-el) delta-col))
+              (current-gametree (igo-gameflow-get-current-gametree igo-current-gameflow))
+              (current-gametree-seq (igo-sgf-gametree-get-sequence current-gametree))
+              (current-tree-nodes (igo-sgf-sequence-get-nodes current-gametree-seq))
+              (node-count (length current-tree-nodes)))
+         (cond ((< new-current-path-value 0)
+                (let ((prev-path-el (igo-get-prev-path-el path current-path-idx)))
+                  (if prev-path-el
+                      (progn (setcdr prev-path-el nil)
+                             (igo-view-apply-delta-col (- new-current-path-value (- 1))))
+                    (igo-gameflow-set-path igo-current-gameflow (list 0)))))
+               ((>= new-current-path-value node-count)
+                (setcdr current-path-el (cons (list 'branch 0) (cons (- new-current-path-value node-count) nil))))
+               (t
+                (setcar current-path-el new-current-path-value))))))))
 
 (defun igo-view-arrow-input (delta-col delta-row)
-  (igo-view-apply-delta-path delta-col delta-row)
+  (igo-view-apply-delta-row delta-row)
+  (igo-view-apply-delta-col delta-col) delta-row
   (setq igo-current-gamestate (igo-gameflow-apply igo-current-gameflow igo-current-gamestate))
   (igo-redraw))
 
