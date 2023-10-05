@@ -1,26 +1,27 @@
-;; - igo mode -
-;; by David St-Hilaire
-;;
-;; - Installation instructions -
-;;
-;; Add this file to your load path with (add-to-list 'load-path
-;; "path-to-this-file") then add (require 'igo)
-;;
-;; - Usage -
-;;
-;; You can load an SGF file with <M-x> igo-load-sgf-file
-;; or you can start a new gamw with <M-x> igo.
-;;
-;; In the *igo* buffer, you can use <space> to change modes.  The view mode lets
-;; you navigate the game loaded from an SGF file using the arrows.
-;;
-;; In "play" mode you can add stones using the arrows followed by <return>, or
-;; directly input the coordinates of the move you want to enter (like "cC",
-;; <return>).
-;;
-;; The latest version can be foudn at:
-;;     https://github.com/sthilaid/igo.el
+;;; - igo mode -
+;;; by David St-Hilaire
+;;;
+;;; - Installation instructions -
+;;;
+;;; Add this file to your load path with (add-to-list 'load-path
+;;; "path-to-this-file") then add (require 'igo)
+;;;
+;;; - Usage -
+;;;
+;;; You can load an SGF file with <M-x> igo-load-sgf-file
+;;; or you can start a new gamw with <M-x> igo.
+;;;
+;;; In the *igo* buffer, you can use <space> to change modes.  The view mode lets
+;;; you navigate the game loaded from an SGF file using the arrows.
+;;;
+;;; In "play" mode you can add stones using the arrows followed by <return>, or
+;;; directly input the coordinates of the move you want to enter (like "cC",
+;;; <return>).
+;;;
+;;; The latest version can be foudn at:
+;;;     https://github.com/sthilaid/igo
 
+(defvar igo-example-game)
 (define-error 'igo-error-sgf-parsing "sgf parsing error occured: ")
 (define-error 'igo-error-invalid-player "Invalid player used in game of go, should be 'b or 'w")
 (define-error 'igo-error-invalid-move "Played move is not valid: ")
@@ -97,7 +98,6 @@
            igo-buffer-name))
 
 ;; TEMPORARY
-(setq max-specpdl-size 50000)
 (setq max-lisp-eval-depth 50000)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -520,7 +520,7 @@
                                       (igo-state-set-last-move-annotation (concat "good-for-white: " str-double) gamestate)))
      ((string= identifier "UC")     (let* ((double (igo-sgf-property-get-double-value sgf-property))
                                            (str-double (number-to-string double)))
-                                      (igo-state-set-last-move-annotation (concat "unclear-position: " str-double gamestate))))
+                                      (igo-state-set-last-move-annotation (concat "unclear-position: " str-double) gamestate)))
      ((string= identifier "HO")     (let* ((double (igo-sgf-property-get-double-value sgf-property))
                                            (str-double (number-to-string double)))
                                       (igo-state-set-last-move-annotation (concat "hotspot: " str-double) gamestate)))
